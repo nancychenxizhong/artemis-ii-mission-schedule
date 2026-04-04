@@ -113,7 +113,7 @@ export default function ArtemisMiniAppPrototype() {
             </Badge>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Artemis II mission schedule</h1>
-          <p className="max-w-3xl text-sm text-slate-600">
+          <p className="max-w-xl text-sm leading-6 text-slate-600 md:max-w-2xl text-balance">
             A simple, shareable view of key mission milestones with NASA time, UTC, baseline plan, latest public status,
             and source freshness.
           </p>
@@ -126,7 +126,7 @@ export default function ArtemisMiniAppPrototype() {
         </div>
 
         <Card className="rounded-2xl shadow-sm">
-          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+          <CardContent className="flex flex-col gap-3 p-4 pt-4 md:flex-row md:items-center md:justify-between">
             <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-3 md:gap-6">
               <div>
                 Last updated: {lastUpdated}
