@@ -49,12 +49,22 @@ export default function ArtemisMiniAppPrototype() {
     refreshingRef.current = true;
     setIsRefreshing(true);
     setRefreshError(null);
+    console.info("[Artemis schedule] Refresh started");
 
     try {
       const data = await fetchSchedule();
       applySchedule(data);
+      console.info("[Artemis schedule] Refresh succeeded", {
+        checkedAt: data.checkedAt,
+        live: data.live,
+        sourceCount: data.sources.length,
+      });
     } catch (error) {
-      setRefreshError(error instanceof Error ? error.message : "Refresh failed");
+      const message = error instanceof Error ? error.message : "Refresh failed";
+      setRefreshError(message);
+      console.error("[Artemis schedule] Refresh failed", {
+        message,
+      });
     } finally {
       refreshingRef.current = false;
       setIsRefreshing(false);
