@@ -1,4 +1,4 @@
-import { BASE_MILESTONES, Milestone, ScheduleResponse, SourceCheck } from "./artemis-data";
+import { Milestone, ScheduleResponse, SourceCheck, cloneBaseMilestones, finalizeMilestoneLatest } from "./artemis-data";
 
 const COVERAGE_URL = "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/";
 const DAILY_AGENDA_URL = "https://www.nasa.gov/missions/artemis/nasas-artemis-ii-moon-mission-daily-agenda/";
@@ -38,10 +38,6 @@ type BuildScheduleDeps = {
   fetchImpl?: FetchLike;
   now?: () => Date;
 };
-
-function cloneMilestones(): Milestone[] {
-  return JSON.parse(JSON.stringify(BASE_MILESTONES)) as Milestone[];
-}
 
 function stripHtml(html: string) {
   return html
@@ -215,7 +211,8 @@ function updateCoverageMilestones(milestones: Milestone[], page: PageResult) {
     const milestone = milestones.find((row) => row.id === item.id);
     if (!milestone) continue;
     if (page.text.includes(item.phrase)) {
-      milestone.latest = "Scheduled";
+      milestone.status = "scheduled";
+      milestone.latestDetail = undefined;
     }
   }
 }
@@ -228,7 +225,7 @@ function updateOtc1(milestones: Milestone[], page: PageResult) {
   milestone.sourceFreshness = freshness;
   if (/cancel(?:ed)?\s+the\s+spacecraft'?s\s+first\s+outbound\s+trajectory\s+correction\s+burn/i.test(page.text)) {
     milestone.status = "canceled";
-    milestone.latest = "Canceled; Orion already on the right flight path";
+    milestone.latestDetail = "Orion already on the right flight path";
   }
 }
 
@@ -238,7 +235,8 @@ function updateCommsTest(milestones: Milestone[], page: PageResult) {
   if (!milestone) return;
   milestone.sourceFreshness = extractFreshness(page.html, "Checked live from Flight Day 3 update");
   if (/testing\s+the\s+spacecraft'?s\s+emergency\s+communications\s+system/i.test(page.text)) {
-    milestone.latest = "Emergency communications system testing confirmed in deep space";
+    milestone.status = "completed";
+    milestone.latestDetail = "emergency communications system and optical link activity publicly confirmed, exact wall-clock time not posted";
   }
 }
 
@@ -249,7 +247,7 @@ function updateTli(milestones: Milestone[], page: PageResult) {
   milestone.sourceFreshness = extractFreshness(page.html, "Checked live from TLI update");
   if (/completes?\s+TLI\s+burn|translunar\s+injection\s+burn/i.test(page.text)) {
     milestone.status = "completed";
-    milestone.latest = "Completed; crew began journey to the Moon";
+    milestone.latestDetail = "crew began journey to the Moon";
   }
 }
 
@@ -259,7 +257,8 @@ function updateLaunch(milestones: Milestone[], page: PageResult) {
   if (!milestone) return;
   milestone.sourceFreshness = extractFreshness(page.html, "Checked live from launch-day updates");
   if (/Live launch day updates/i.test(page.text)) {
-    milestone.latest = "Completed at 6:35 PM EDT";
+    milestone.status = "completed";
+    milestone.latestDetail = "at 6:35 PM EDT";
   }
 }
 
@@ -267,16 +266,6 @@ function updateDailyAgendaBackfill(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.html) return;
   const freshness = extractFreshness(page.html, "Checked live from Daily Agenda");
   setManyFreshness(milestones, ["perigee-raise-icps", "apogee-raise", "proximity-ops"], freshness);
-}
-
-function normalizeDerivedStatuses(milestones: Milestone[]) {
-  for (const milestone of milestones) {
-    const latest = milestone.latest?.toLowerCase() ?? "";
-
-    if ((milestone.status === "inferred" || milestone.status === "changed") && latest.startsWith("completed")) {
-      milestone.status = "completed";
-    }
-  }
 }
 
 function updateManualPilotingDemo(milestones: Milestone[], page: PageResult) {
@@ -287,7 +276,7 @@ function updateManualPilotingDemo(milestones: Milestone[], page: PageResult) {
   milestone.sourceFreshness = extractFreshness(page.html, "Checked live from Flight Day 4 update");
   if (/manual\s+piloting\s+demonstration|controlling\s+the\s+spacecraft/i.test(page.text)) {
     milestone.status = "completed";
-    milestone.latest = "Completed; crew manually piloted Orion for 41 minutes in deep space";
+    milestone.latestDetail = "crew manually piloted Orion for 41 minutes in deep space";
   }
 }
 
@@ -344,7 +333,7 @@ export async function buildScheduleWithDeps({
   now = () => new Date(),
 }: BuildScheduleDeps = {}): Promise<ScheduleResponse> {
   const checkedAt = now().toISOString();
-  const milestones = cloneMilestones();
+  const milestones = cloneBaseMilestones();
 
   const [coverage, dailyAgenda, missionPage, newsUpdates, mediaResources] = await Promise.all([
     fetchPage(COVERAGE_URL, fetchImpl),
@@ -368,7 +357,7 @@ export async function buildScheduleWithDeps({
   for (const missionUpdatePage of missionUpdatePages) {
     applyMissionUpdatePage(milestones, missionUpdatePage);
   }
-  normalizeDerivedStatuses(milestones);
+  finalizeMilestoneLatest(milestones);
 
   const sources = [
     makeSourceCheck("Coverage page", coverage, now),

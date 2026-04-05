@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, RefreshCw } from "lucide-react";
 import { fetchSchedule, formatScheduleTimestamp } from "@/lib/artemis-client";
-import { BASE_MILESTONES, Milestone, ScheduleResponse, Status } from "@/lib/artemis-data";
+import { Milestone, ScheduleResponse, Status, createBundledMilestones } from "@/lib/artemis-data";
 
 function statusTone(status: Status) {
   switch (status) {
@@ -25,7 +25,7 @@ function statusTone(status: Status) {
 }
 
 export default function ArtemisMiniAppPrototype() {
-  const [milestones, setMilestones] = useState<Milestone[]>(BASE_MILESTONES);
+  const [milestones, setMilestones] = useState<Milestone[]>(() => createBundledMilestones());
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<string>("all");
   const [showOnlyChanges, setShowOnlyChanges] = useState(false);

@@ -100,8 +100,9 @@ test("buildScheduleWithDeps applies live page updates into the bundled schedule"
   assert.equal(otc1?.status, "canceled");
   assert.equal(perigeeRaiseIcps?.status, "completed");
   assert.equal(proximityOps?.status, "completed");
+  assert.equal(commsTest?.status, "completed");
   assert.match(otc1?.latest ?? "", /right flight path/i);
-  assert.match(commsTest?.latest ?? "", /emergency communications system testing confirmed/i);
+  assert.match(commsTest?.latest ?? "", /Completed; emergency communications system and optical link activity publicly confirmed/i);
   assert.equal(manualPilotingDemo?.status, "completed");
   assert.match(manualPilotingDemo?.latest ?? "", /41 minutes/i);
   assert.equal(tli?.status, "completed");
