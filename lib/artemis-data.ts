@@ -5,6 +5,7 @@ export type Milestone = {
   title: string;
   phase: "launch" | "outbound" | "lunar" | "return";
   optional?: boolean;
+  optionalKind?: "demo" | "test";
   status: Status;
   edt?: string;
   utc?: string;
@@ -156,6 +157,7 @@ export const BASE_MILESTONES: Milestone[] = [
     title: "Manual Piloting Demonstration",
     phase: "outbound",
     optional: true,
+    optionalKind: "demo",
     status: "completed",
     edt: "Apr 4, 9:09 PM EDT",
     utc: "Apr 5, 1:09 AM UTC",
@@ -170,6 +172,7 @@ export const BASE_MILESTONES: Milestone[] = [
     title: "Crew Survival System Suit Flight Test",
     phase: "outbound",
     optional: true,
+    optionalKind: "test",
     status: "scheduled",
     edt: "Apr 5, 2:20 PM EDT",
     utc: "Apr 5, 6:20 PM UTC",
@@ -267,6 +270,7 @@ export const BASE_MILESTONES: Milestone[] = [
     title: "Radiation Shielding Deployment Demo",
     phase: "return",
     optional: true,
+    optionalKind: "demo",
     status: "scheduled",
     edt: "Apr 8, 8:15 PM EDT",
     utc: "Apr 9, 12:15 AM UTC",

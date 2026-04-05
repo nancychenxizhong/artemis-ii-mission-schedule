@@ -222,7 +222,17 @@ export default function ArtemisMiniAppPrototype() {
                   {filtered.map((m) => (
                     <tr key={m.id} className="align-top odd:bg-slate-50/60">
                       <td className="border-t border-slate-200 px-4 py-4">
-                        <div className="font-medium text-slate-900">{m.title}</div>
+                        <div className="font-medium text-slate-900">
+                          <span>{m.title}</span>
+                          {m.optional && m.optionalKind ? (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 inline-flex rounded-full border-slate-200 bg-slate-50 px-2 py-0 align-middle text-[10px] uppercase tracking-wide text-slate-500"
+                            >
+                              {m.optionalKind}
+                            </Badge>
+                          ) : null}
+                        </div>
                         <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">{m.phase}</div>
                         {m.note ? <div className="mt-2 text-xs text-slate-500">{m.note}</div> : null}
                       </td>
