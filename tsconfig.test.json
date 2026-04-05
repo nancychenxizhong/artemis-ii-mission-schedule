@@ -4,7 +4,6 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "target": "ES2022",
-    "ignoreDeprecations": "6.0",
     "types": ["node"],
     "noEmit": false,
     "outDir": ".test-build",
