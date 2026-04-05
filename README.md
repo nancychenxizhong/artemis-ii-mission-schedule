@@ -1,12 +1,19 @@
 # Artemis II Mini App
 
 A simple, shareable Artemis II mission schedule app with:
-- NASA time and UTC side by side
+- NASA time plus selectable timezone views
 - baseline plan vs latest public status
 - source freshness
 - readable table-first layout
 - live refresh against a normalized local API endpoint
 - a lightweight test suite for refresh and sync logic
+
+## App Preview
+
+![Artemis II mission schedule](docs/README-assets/artemis-ii-mission-schedule.png)
+
+Preview app on Vercel:
+https://artemis-mini-app.vercel.app
 
 ## Run locally
 
