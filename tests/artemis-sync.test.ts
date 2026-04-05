@@ -91,11 +91,15 @@ test("buildScheduleWithDeps applies live page updates into the bundled schedule"
   const otc1 = schedule.milestones.find((milestone) => milestone.id === "otc1");
   const commsTest = schedule.milestones.find((milestone) => milestone.id === "comms-test");
   const manualPilotingDemo = schedule.milestones.find((milestone) => milestone.id === "manual-piloting-demo");
+  const perigeeRaiseIcps = schedule.milestones.find((milestone) => milestone.id === "perigee-raise-icps");
+  const proximityOps = schedule.milestones.find((milestone) => milestone.id === "proximity-ops");
   const tli = schedule.milestones.find((milestone) => milestone.id === "tli");
   const crewSuitTest = schedule.milestones.find((milestone) => milestone.id === "crew-suit-test");
   const splashdown = schedule.milestones.find((milestone) => milestone.id === "splashdown");
 
   assert.equal(otc1?.status, "canceled");
+  assert.equal(perigeeRaiseIcps?.status, "completed");
+  assert.equal(proximityOps?.status, "completed");
   assert.match(otc1?.latest ?? "", /right flight path/i);
   assert.match(commsTest?.latest ?? "", /emergency communications system testing confirmed/i);
   assert.equal(manualPilotingDemo?.status, "completed");

@@ -269,6 +269,16 @@ function updateDailyAgendaBackfill(milestones: Milestone[], page: PageResult) {
   setManyFreshness(milestones, ["perigee-raise-icps", "apogee-raise", "proximity-ops"], freshness);
 }
 
+function normalizeDerivedStatuses(milestones: Milestone[]) {
+  for (const milestone of milestones) {
+    const latest = milestone.latest?.toLowerCase() ?? "";
+
+    if ((milestone.status === "inferred" || milestone.status === "changed") && latest.startsWith("completed")) {
+      milestone.status = "completed";
+    }
+  }
+}
+
 function updateManualPilotingDemo(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.text || !page.html) return;
   const milestone = milestones.find((row) => row.id === "manual-piloting-demo");
@@ -358,6 +368,7 @@ export async function buildScheduleWithDeps({
   for (const missionUpdatePage of missionUpdatePages) {
     applyMissionUpdatePage(milestones, missionUpdatePage);
   }
+  normalizeDerivedStatuses(milestones);
 
   const sources = [
     makeSourceCheck("Coverage page", coverage, now),
