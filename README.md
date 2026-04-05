@@ -13,7 +13,7 @@ A simple, shareable Artemis II mission schedule app with:
 ![Artemis II mission schedule](docs/README-assets/artemis-ii-mission-schedule.png)
 
 Preview app on Vercel:
-https://artemis-mini-app.vercel.app
+https://artemis-ii-mission-schedule.vercel.app
 
 ## Run locally
 
