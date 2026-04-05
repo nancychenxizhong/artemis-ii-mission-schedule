@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, RefreshCw } from "lucide-react";
 import { fetchSchedule, formatScheduleTimestamp } from "@/lib/artemis-client";
-import { Milestone, ScheduleResponse, Status, createBundledMilestones } from "@/lib/artemis-data";
+import { Milestone, ScheduleResponse, Status, createBundledMilestones, formatMilestoneTimeInZone } from "@/lib/artemis-data";
 
 function statusTone(status: Status) {
   switch (status) {
@@ -245,7 +245,7 @@ export default function ArtemisMiniAppPrototype() {
                         </div>
                       </td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.edt || "—"}</td>
-                      <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.utc || "—"}</td>
+                      <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{formatMilestoneTimeInZone(m.timeSpec, "UTC")}</td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.baseline || "—"}</td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.latest || "—"}</td>
                       <td className="border-t border-slate-200 px-4 py-4">

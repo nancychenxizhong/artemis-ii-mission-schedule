@@ -1,5 +1,18 @@
 export type Status = "completed" | "scheduled" | "changed" | "canceled" | "inferred";
 
+export type MilestoneTimeSpec =
+  | {
+      kind: "instant";
+      instantUtc: string;
+      approximate?: boolean;
+    }
+  | {
+      kind: "range";
+      startUtc: string;
+      endUtc: string;
+      approximate?: boolean;
+    };
+
 export type Milestone = {
   id: string;
   title: string;
@@ -8,7 +21,7 @@ export type Milestone = {
   optionalKind?: "demo" | "test";
   status: Status;
   edt?: string;
-  utc?: string;
+  timeSpec?: MilestoneTimeSpec;
   baseline?: string;
   latest?: string;
   latestDetail?: string;
@@ -41,7 +54,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "launch",
     status: "completed",
     edt: "Apr 1, 6:35 PM EDT",
-    utc: "Apr 1, 10:35 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-01T22:35:00Z" },
     baseline: "Launch window opened 6:24 PM EDT",
     latestDetail: "at 6:35 PM EDT",
     source: "Launch day live updates",
@@ -54,7 +67,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "launch",
     status: "completed",
     edt: "~Apr 1, 7:24 PM EDT",
-    utc: "~Apr 1, 11:24 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-01T23:24:00Z", approximate: true },
     baseline: "About 49 minutes after launch",
     latestDetail: "public post confirms milestone, not exact event timestamp",
     note: "Estimated from relative timing in NASA planning docs.",
@@ -68,7 +81,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "launch",
     status: "completed",
     edt: "~Apr 1, 8:24 PM EDT",
-    utc: "~Apr 2, 12:24 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-02T00:24:00Z", approximate: true },
     baseline: "About an hour after perigee raise",
     latestDetail: "exact timestamp not publicly surfaced",
     source: "Daily Agenda + mission update",
@@ -81,7 +94,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "launch",
     status: "completed",
     edt: "~Apr 1, 9:35 PM EDT",
-    utc: "~Apr 2, 1:35 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-02T01:35:00Z", approximate: true },
     baseline: "Around 3 hours into the mission",
     latestDetail: "duration publicly described, exact start/end time not pinned down",
     source: "Daily Agenda + mission update",
@@ -93,8 +106,13 @@ export const BASE_MILESTONES: Milestone[] = [
     title: "Perigee Raise Burn (Orion)",
     phase: "outbound",
     status: "completed",
-    edt: "Early Apr 2",
-    utc: "Early Apr 2",
+    edt: "Apr 2, 12:00 AM-11:59 AM EDT",
+    // Product convention: "Early" maps to the first half of the NASA day.
+    timeSpec: {
+      kind: "range",
+      startUtc: "2026-04-02T04:00:00Z",
+      endUtc: "2026-04-02T15:59:00Z",
+    },
     baseline: "Flight Day 2 morning sequence",
     latestDetail: "exact burn clock time not publicly timestamped",
     source: "Apr 2 mission update",
@@ -107,7 +125,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "outbound",
     status: "completed",
     edt: "Apr 2, 7:49 PM EDT",
-    utc: "Apr 2, 11:49 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-02T23:49:00Z" },
     baseline: "Planned 7:49 PM EDT",
     latestDetail: "at scheduled time",
     source: "TLI mission update",
@@ -119,8 +137,13 @@ export const BASE_MILESTONES: Milestone[] = [
     title: "Emergency + Optical Comms Testing",
     phase: "outbound",
     status: "completed",
-    edt: "Apr 3, second half of day",
-    utc: "Apr 3, second half of day +4h",
+    edt: "Apr 3, 12:00 PM-11:59 PM EDT",
+    // Product convention: "second half of day" maps to 12:00 PM-11:59 PM NASA time.
+    timeSpec: {
+      kind: "range",
+      startUtc: "2026-04-03T16:00:00Z",
+      endUtc: "2026-04-04T03:59:00Z",
+    },
     baseline: "Scheduled during Flight Day 3",
     latestDetail: "emergency comms test and optical link activity publicly confirmed, exact wall-clock time not posted",
     source: "Flight Day 3 updates",
@@ -133,7 +156,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "outbound",
     status: "canceled",
     edt: "Apr 3, 6:49 PM EDT",
-    utc: "Apr 3, 10:49 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-03T22:49:00Z" },
     baseline: "Planned burn",
     latestDetail: "Orion already on the right path",
     source: "OTC-1 update",
@@ -146,7 +169,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "outbound",
     status: "scheduled",
     edt: "Apr 4, 7:49 PM EDT",
-    utc: "Apr 4, 11:49 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-04T23:49:00Z" },
     baseline: "Planned burn",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -160,7 +183,7 @@ export const BASE_MILESTONES: Milestone[] = [
     optionalKind: "demo",
     status: "completed",
     edt: "Apr 4, 9:09 PM EDT",
-    utc: "Apr 5, 1:09 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-05T01:09:00Z" },
     baseline: "Flight Day 4 deep-space piloting objective",
     latestDetail: "crew manually piloted Orion for 41 minutes in deep space",
     source: "Flight Day 4 update",
@@ -175,7 +198,7 @@ export const BASE_MILESTONES: Milestone[] = [
     optionalKind: "test",
     status: "scheduled",
     edt: "Apr 5, 2:20 PM EDT",
-    utc: "Apr 5, 6:20 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-05T18:20:00Z" },
     baseline: "Detailed flight test objective",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -187,7 +210,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "outbound",
     status: "scheduled",
     edt: "Apr 5, 11:03 PM EDT",
-    utc: "Apr 6, 3:03 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-06T03:03:00Z" },
     baseline: "Planned burn",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -199,7 +222,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "lunar",
     status: "scheduled",
     edt: "Apr 6, 12:41 AM EDT",
-    utc: "Apr 6, 4:41 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-06T04:41:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -211,7 +234,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "lunar",
     status: "scheduled",
     edt: "Apr 6, 7:02 PM EDT",
-    utc: "Apr 6, 11:02 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-06T23:02:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -223,7 +246,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "lunar",
     status: "scheduled",
     edt: "Apr 6, 7:05 PM EDT",
-    utc: "Apr 6, 11:05 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-06T23:05:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -235,7 +258,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "return",
     status: "scheduled",
     edt: "Apr 7, 1:28 PM EDT",
-    utc: "Apr 7, 5:28 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-07T17:28:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -247,7 +270,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "return",
     status: "scheduled",
     edt: "Apr 7, 9:03 PM EDT",
-    utc: "Apr 8, 1:03 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-08T01:03:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -259,7 +282,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "return",
     status: "scheduled",
     edt: "Apr 9, 10:53 PM EDT",
-    utc: "Apr 10, 2:53 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-10T02:53:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -273,7 +296,7 @@ export const BASE_MILESTONES: Milestone[] = [
     optionalKind: "demo",
     status: "scheduled",
     edt: "Apr 8, 8:15 PM EDT",
-    utc: "Apr 9, 12:15 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-09T00:15:00Z" },
     baseline: "Planned flight demonstration",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -285,7 +308,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "return",
     status: "scheduled",
     edt: "Apr 10, 2:53 PM EDT",
-    utc: "Apr 10, 6:53 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-10T18:53:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -297,7 +320,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "return",
     status: "scheduled",
     edt: "Apr 10, 7:53 PM EDT",
-    utc: "Apr 10, 11:53 PM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-10T23:53:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -309,7 +332,7 @@ export const BASE_MILESTONES: Milestone[] = [
     phase: "return",
     status: "scheduled",
     edt: "Apr 10, 8:07 PM EDT",
-    utc: "Apr 11, 12:07 AM UTC",
+    timeSpec: { kind: "instant", instantUtc: "2026-04-11T00:07:00Z" },
     baseline: "Planned",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
@@ -348,4 +371,60 @@ export function finalizeMilestoneLatest(milestones: Milestone[]) {
 
 export function createBundledMilestones() {
   return finalizeMilestoneLatest(cloneBaseMilestones());
+}
+
+function formatMonthDay(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatExactTime(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(date);
+}
+
+function formatTimeOnly(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(date);
+}
+
+export function formatMilestoneTimeInZone(timeSpec: MilestoneTimeSpec | undefined, timeZone = "UTC") {
+  if (!timeSpec) {
+    return "—";
+  }
+
+  if (timeSpec.kind === "instant") {
+    const formatted = formatExactTime(new Date(timeSpec.instantUtc), timeZone);
+    return timeSpec.approximate ? `~${formatted}` : formatted;
+  }
+
+  if (timeSpec.kind === "range") {
+    const start = new Date(timeSpec.startUtc);
+    const end = new Date(timeSpec.endUtc);
+    const startDate = formatMonthDay(start, timeZone);
+    const endDate = formatMonthDay(end, timeZone);
+
+    if (startDate === endDate) {
+      const formatted = `${startDate}, ${formatTimeOnly(start, timeZone)}-${formatTimeOnly(end, timeZone)}`;
+      return timeSpec.approximate ? `~${formatted}` : formatted;
+    }
+
+    const formatted = `${formatExactTime(start, timeZone)}-${formatExactTime(end, timeZone)}`;
+    return timeSpec.approximate ? `~${formatted}` : formatted;
+  }
 }
