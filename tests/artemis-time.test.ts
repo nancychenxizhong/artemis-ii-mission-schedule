@@ -9,6 +9,7 @@ test("formatMilestoneTimeInZone formats exact UTC timestamps", () => {
   };
 
   assert.equal(formatMilestoneTimeInZone(timeSpec, "UTC"), "Apr 2, 11:49 PM UTC");
+  assert.equal(formatMilestoneTimeInZone(timeSpec, "Australia/Melbourne"), "Apr 3, 10:49 AM GMT+11");
 });
 
 test("formatMilestoneTimeInZone preserves approximate exact times", () => {

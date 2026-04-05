@@ -5,9 +5,39 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, RefreshCw } from "lucide-react";
+import { Search, Filter, RefreshCw, Globe, Check } from "lucide-react";
 import { fetchSchedule, formatScheduleTimestamp } from "@/lib/artemis-client";
 import { Milestone, ScheduleResponse, Status, createBundledMilestones, formatMilestoneTimeInZone } from "@/lib/artemis-data";
+
+const TIME_ZONE_OPTIONS = [
+  { value: "UTC", label: "UTC", headerLabel: "UTC" },
+  { value: "Europe/London", label: "UTC+0  London", headerLabel: "London" },
+  { value: "Atlantic/Azores", label: "UTC-1  Azores Islands", headerLabel: "Azores" },
+  { value: "Europe/Paris", label: "UTC+1  Paris / Berlin", headerLabel: "Paris / Berlin" },
+  { value: "Africa/Cairo", label: "UTC+2  Cairo", headerLabel: "Cairo" },
+  { value: "Asia/Riyadh", label: "UTC+3  Jeddah", headerLabel: "Jeddah" },
+  { value: "America/Noronha", label: "UTC-2  Fernando de Noronha", headerLabel: "Fernando de Noronha" },
+  { value: "Asia/Dubai", label: "UTC+4  Dubai", headerLabel: "Dubai" },
+  { value: "America/Sao_Paulo", label: "UTC-3  Rio de Janeiro", headerLabel: "Rio de Janeiro" },
+  { value: "Asia/Karachi", label: "UTC+5  Karachi", headerLabel: "Karachi" },
+  { value: "America/Santo_Domingo", label: "UTC-4  Santo Domingo", headerLabel: "Santo Domingo" },
+  { value: "Asia/Dhaka", label: "UTC+6  Dhaka", headerLabel: "Dhaka" },
+  { value: "America/New_York", label: "UTC-5  New York", headerLabel: "New York" },
+  { value: "Asia/Bangkok", label: "UTC+7  Bangkok", headerLabel: "Bangkok" },
+  { value: "America/Chicago", label: "UTC-6  Chicago", headerLabel: "Chicago" },
+  { value: "Asia/Shanghai", label: "UTC+8  Beijing", headerLabel: "Beijing" },
+  { value: "America/Denver", label: "UTC-7  Denver", headerLabel: "Denver" },
+  { value: "Asia/Tokyo", label: "UTC+9  Tokyo", headerLabel: "Tokyo" },
+  { value: "America/Los_Angeles", label: "UTC-8  Los Angeles", headerLabel: "Los Angeles" },
+  { value: "Australia/Sydney", label: "UTC+10  Sydney", headerLabel: "Sydney" },
+  { value: "America/Anchorage", label: "UTC-9  Anchorage", headerLabel: "Anchorage" },
+  { value: "Pacific/Noumea", label: "UTC+11  Noumea", headerLabel: "Noumea" },
+  { value: "Pacific/Honolulu", label: "UTC-10  Honolulu", headerLabel: "Honolulu" },
+  { value: "Pacific/Auckland", label: "UTC+12  Wellington", headerLabel: "Wellington" },
+  { value: "Pacific/Midway", label: "UTC-11  Midway Island", headerLabel: "Midway Island" },
+  { value: "Pacific/Tongatapu", label: "UTC+13  Nuku'alofa", headerLabel: "Nuku'alofa" },
+  { value: "Australia/Melbourne", label: "UTC+10  Melbourne", headerLabel: "Melbourne" },
+];
 
 function statusTone(status: Status) {
   switch (status) {
@@ -30,12 +60,15 @@ export default function ArtemisMiniAppPrototype() {
   const [phase, setPhase] = useState<string>("all");
   const [showOnlyChanges, setShowOnlyChanges] = useState(false);
   const [showOptionalEvents, setShowOptionalEvents] = useState(false);
+  const [selectedTimeZone, setSelectedTimeZone] = useState("UTC");
+  const [timeZoneMenuOpen, setTimeZoneMenuOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("Bundled schedule");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [live, setLive] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const refreshingRef = useRef(false);
   const refreshDataRef = useRef<() => Promise<void>>(async () => {});
+  const timeZoneMenuRef = useRef<HTMLDivElement | null>(null);
 
   function applySchedule(data: ScheduleResponse) {
     setMilestones(data.milestones);
@@ -76,6 +109,22 @@ export default function ArtemisMiniAppPrototype() {
     void refreshDataRef.current();
   }, []);
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!timeZoneMenuRef.current?.contains(event.target as Node)) {
+        setTimeZoneMenuOpen(false);
+      }
+    }
+
+    if (timeZoneMenuOpen) {
+      document.addEventListener("mousedown", handlePointerDown);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [timeZoneMenuOpen]);
+
   const visibleMilestones = useMemo(() => milestones.filter((m) => showOptionalEvents || !m.optional), [milestones, showOptionalEvents]);
 
   const filtered = useMemo(() => {
@@ -99,6 +148,8 @@ export default function ArtemisMiniAppPrototype() {
     }),
     [visibleMilestones]
   );
+
+  const selectedTimeZoneOption = TIME_ZONE_OPTIONS.find((option) => option.value === selectedTimeZone) ?? TIME_ZONE_OPTIONS[0];
 
   return (
     <div className="min-h-screen bg-white p-4 md:p-8">
@@ -212,7 +263,43 @@ export default function ArtemisMiniAppPrototype() {
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Milestone</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Status</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">NASA time</th>
-                    <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">UTC</th>
+                    <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">
+                      <div ref={timeZoneMenuRef} className="relative flex min-w-[220px] items-center gap-2">
+                        <span>{selectedTimeZoneOption.headerLabel}</span>
+                        <Button
+                          variant="outline"
+                          className="h-8 min-w-8 rounded-full border-slate-200 px-0 text-slate-500 hover:text-slate-900"
+                          aria-label="Choose time zone"
+                          aria-expanded={timeZoneMenuOpen}
+                          onClick={() => setTimeZoneMenuOpen((open) => !open)}
+                        >
+                          <Globe className="h-4 w-4 shrink-0 stroke-[2.25] text-slate-600" />
+                        </Button>
+                        {timeZoneMenuOpen ? (
+                          <div className="absolute left-0 top-full z-20 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                            <div className="border-b border-slate-100 px-3 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                              Time zone
+                            </div>
+                            <div className="max-h-80 overflow-y-auto p-1">
+                              {TIME_ZONE_OPTIONS.map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setSelectedTimeZone(option.value);
+                                    setTimeZoneMenuOpen(false);
+                                  }}
+                                >
+                                  <span>{option.label}</span>
+                                  {option.value === selectedTimeZone ? <Check className="h-4 w-4 text-slate-500" /> : null}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Baseline plan</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Latest public status</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Source freshness</th>
@@ -245,7 +332,9 @@ export default function ArtemisMiniAppPrototype() {
                         </div>
                       </td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.edt || "—"}</td>
-                      <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{formatMilestoneTimeInZone(m.timeSpec, "UTC")}</td>
+                      <td className="border-t border-slate-200 px-4 py-4 text-slate-700">
+                        {formatMilestoneTimeInZone(m.timeSpec, selectedTimeZone)}
+                      </td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.baseline || "—"}</td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.latest || "—"}</td>
                       <td className="border-t border-slate-200 px-4 py-4">
