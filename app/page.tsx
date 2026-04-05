@@ -1,312 +1,134 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, RefreshCw } from "lucide-react";
+import { Search, Filter, RefreshCw, Globe, Check } from "lucide-react";
+import { fetchSchedule, formatScheduleTimestamp } from "@/lib/artemis-client";
+import { Milestone, ScheduleResponse, Status, createBundledMilestones, formatMilestoneTimeInZone } from "@/lib/artemis-data";
 
-type Status = "completed" | "scheduled" | "changed" | "canceled" | "inferred";
-
-type Milestone = {
-  id: string;
-  title: string;
-  phase: "launch" | "outbound" | "lunar" | "return";
-  status: Status;
-  edt?: string;
-  utc?: string;
-  baseline?: string;
-  latest?: string;
-  note?: string;
-  source: string;
-  sourceFreshness: string;
-  confidence: "high" | "medium" | "low";
-};
-
-const milestones: Milestone[] = [
-  {
-    id: "launch",
-    title: "Liftoff",
-    phase: "launch",
-    status: "completed",
-    edt: "Apr 1, 6:35 PM EDT",
-    utc: "Apr 1, 10:35 PM UTC",
-    baseline: "Launch window opened 6:24 PM EDT",
-    latest: "Completed at 6:35 PM EDT",
-    source: "Launch day live updates",
-    sourceFreshness: "Apr 1–2",
-    confidence: "high",
-  },
-  {
-    id: "perigee-raise-icps",
-    title: "Perigee Raise Maneuver (ICPS)",
-    phase: "launch",
-    status: "inferred",
-    edt: "~Apr 1, 7:24 PM EDT",
-    utc: "~Apr 1, 11:24 PM UTC",
-    baseline: "About 49 minutes after launch",
-    latest: "Completed; public post confirms milestone, not exact event timestamp",
-    note: "Estimated from relative timing in NASA planning docs.",
-    source: "Daily Agenda + mission update",
-    sourceFreshness: "Mar 13 baseline / Apr 1 update",
-    confidence: "medium",
-  },
-  {
-    id: "apogee-raise",
-    title: "Apogee Raise Burn",
-    phase: "launch",
-    status: "inferred",
-    edt: "~Apr 1, 8:24 PM EDT",
-    utc: "~Apr 2, 12:24 AM UTC",
-    baseline: "About an hour after perigee raise",
-    latest: "Completed; exact timestamp not publicly surfaced",
-    source: "Daily Agenda + mission update",
-    sourceFreshness: "Mar 13 baseline / Apr 1 update",
-    confidence: "medium",
-  },
-  {
-    id: "proximity-ops",
-    title: "Proximity Operations Demo",
-    phase: "launch",
-    status: "changed",
-    edt: "~Apr 1, 9:35 PM EDT",
-    utc: "~Apr 2, 1:35 AM UTC",
-    baseline: "Around 3 hours into the mission",
-    latest: "Completed; duration publicly described, exact start/end time not pinned down",
-    source: "Daily Agenda + mission update",
-    sourceFreshness: "Mar 13 baseline / Apr 1–2 update",
-    confidence: "medium",
-  },
-  {
-    id: "perigee-raise-orion",
-    title: "Perigee Raise Burn (Orion)",
-    phase: "outbound",
-    status: "changed",
-    edt: "Early Apr 2",
-    utc: "Early Apr 2",
-    baseline: "Flight Day 2 morning sequence",
-    latest: "Completed; exact burn clock time not publicly timestamped",
-    source: "Apr 2 mission update",
-    sourceFreshness: "Apr 2",
-    confidence: "medium",
-  },
-  {
-    id: "tli",
-    title: "Translunar Injection (TLI)",
-    phase: "outbound",
-    status: "completed",
-    edt: "Apr 2, 7:49 PM EDT",
-    utc: "Apr 2, 11:49 PM UTC",
-    baseline: "Planned 7:49 PM EDT",
-    latest: "Completed at scheduled time",
-    source: "TLI mission update",
-    sourceFreshness: "Apr 2",
-    confidence: "high",
-  },
-  {
-    id: "comms-test",
-    title: "Emergency + Optical Comms Testing",
-    phase: "outbound",
-    status: "changed",
-    edt: "Apr 3, second half of day",
-    utc: "Apr 3, second half of day +4h",
-    baseline: "Scheduled during Flight Day 3",
-    latest: "Emergency comms test and optical link activity publicly confirmed, exact wall-clock time not posted",
-    source: "Flight Day 3 updates",
-    sourceFreshness: "Apr 3–4",
-    confidence: "medium",
-  },
-  {
-    id: "otc1",
-    title: "Outbound Trajectory Correction-1",
-    phase: "outbound",
-    status: "canceled",
-    edt: "Apr 3, 6:49 PM EDT",
-    utc: "Apr 3, 10:49 PM UTC",
-    baseline: "Planned burn",
-    latest: "Canceled; Orion already on the right path",
-    source: "OTC-1 update",
-    sourceFreshness: "Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "otc2",
-    title: "Outbound Trajectory Correction-2",
-    phase: "outbound",
-    status: "scheduled",
-    edt: "Apr 4, 7:49 PM EDT",
-    utc: "Apr 4, 11:49 PM UTC",
-    baseline: "Planned burn",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "otc3",
-    title: "Outbound Trajectory Correction-3",
-    phase: "outbound",
-    status: "scheduled",
-    edt: "Apr 5, 11:03 PM EDT",
-    utc: "Apr 6, 3:03 AM UTC",
-    baseline: "Planned burn",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "soi-in",
-    title: "Enter Lunar Sphere of Influence",
-    phase: "lunar",
-    status: "scheduled",
-    edt: "Apr 6, 12:41 AM EDT",
-    utc: "Apr 6, 4:41 AM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "closest-approach",
-    title: "Closest Approach to the Moon",
-    phase: "lunar",
-    status: "scheduled",
-    edt: "Apr 6, 7:02 PM EDT",
-    utc: "Apr 6, 11:02 PM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "max-distance",
-    title: "Maximum Distance from Earth",
-    phase: "lunar",
-    status: "scheduled",
-    edt: "Apr 6, 7:05 PM EDT",
-    utc: "Apr 6, 11:05 PM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "soi-out",
-    title: "Exit Lunar Sphere of Influence",
-    phase: "return",
-    status: "scheduled",
-    edt: "Apr 7, 1:28 PM EDT",
-    utc: "Apr 7, 5:28 PM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "rtc1",
-    title: "Return Trajectory Correction-1",
-    phase: "return",
-    status: "scheduled",
-    edt: "Apr 7, 9:03 PM EDT",
-    utc: "Apr 8, 1:03 AM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "rtc2",
-    title: "Return Trajectory Correction-2",
-    phase: "return",
-    status: "scheduled",
-    edt: "Apr 9, 10:53 PM EDT",
-    utc: "Apr 10, 2:53 AM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "rtc3",
-    title: "Return Trajectory Correction-3",
-    phase: "return",
-    status: "scheduled",
-    edt: "Apr 10, 2:53 PM EDT",
-    utc: "Apr 10, 6:53 PM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "entry-interface",
-    title: "Entry Interface",
-    phase: "return",
-    status: "scheduled",
-    edt: "Apr 10, 7:53 PM EDT",
-    utc: "Apr 10, 11:53 PM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
-  {
-    id: "splashdown",
-    title: "Splashdown",
-    phase: "return",
-    status: "scheduled",
-    edt: "Apr 10, 8:07 PM EDT",
-    utc: "Apr 11, 12:07 AM UTC",
-    baseline: "Planned",
-    latest: "Scheduled",
-    source: "Coverage page",
-    sourceFreshness: "Updated Apr 3",
-    confidence: "high",
-  },
+const TIME_ZONE_OPTIONS = [
+  { value: "UTC", label: "UTC", headerLabel: "UTC" },
+  { value: "Europe/London", label: "UTC+0  London", headerLabel: "London" },
+  { value: "Atlantic/Azores", label: "UTC-1  Azores Islands", headerLabel: "Azores" },
+  { value: "Europe/Paris", label: "UTC+1  Paris / Berlin", headerLabel: "Paris / Berlin" },
+  { value: "Africa/Cairo", label: "UTC+2  Cairo", headerLabel: "Cairo" },
+  { value: "Asia/Riyadh", label: "UTC+3  Jeddah", headerLabel: "Jeddah" },
+  { value: "America/Noronha", label: "UTC-2  Fernando de Noronha", headerLabel: "Fernando de Noronha" },
+  { value: "Asia/Dubai", label: "UTC+4  Dubai", headerLabel: "Dubai" },
+  { value: "America/Sao_Paulo", label: "UTC-3  Rio de Janeiro", headerLabel: "Rio de Janeiro" },
+  { value: "Asia/Karachi", label: "UTC+5  Karachi", headerLabel: "Karachi" },
+  { value: "America/Santo_Domingo", label: "UTC-4  Santo Domingo", headerLabel: "Santo Domingo" },
+  { value: "Asia/Dhaka", label: "UTC+6  Dhaka", headerLabel: "Dhaka" },
+  { value: "America/New_York", label: "UTC-5  New York", headerLabel: "New York" },
+  { value: "Asia/Bangkok", label: "UTC+7  Bangkok", headerLabel: "Bangkok" },
+  { value: "America/Chicago", label: "UTC-6  Chicago", headerLabel: "Chicago" },
+  { value: "Asia/Shanghai", label: "UTC+8  Beijing", headerLabel: "Beijing" },
+  { value: "America/Denver", label: "UTC-7  Denver", headerLabel: "Denver" },
+  { value: "Asia/Tokyo", label: "UTC+9  Tokyo", headerLabel: "Tokyo" },
+  { value: "America/Los_Angeles", label: "UTC-8  Los Angeles", headerLabel: "Los Angeles" },
+  { value: "Australia/Sydney", label: "UTC+10  Sydney", headerLabel: "Sydney" },
+  { value: "America/Anchorage", label: "UTC-9  Anchorage", headerLabel: "Anchorage" },
+  { value: "Pacific/Noumea", label: "UTC+11  Noumea", headerLabel: "Noumea" },
+  { value: "Pacific/Honolulu", label: "UTC-10  Honolulu", headerLabel: "Honolulu" },
+  { value: "Pacific/Auckland", label: "UTC+12  Wellington", headerLabel: "Wellington" },
+  { value: "Pacific/Midway", label: "UTC-11  Midway Island", headerLabel: "Midway Island" },
+  { value: "Pacific/Tongatapu", label: "UTC+13  Nuku'alofa", headerLabel: "Nuku'alofa" },
+  { value: "Australia/Melbourne", label: "UTC+10  Melbourne", headerLabel: "Melbourne" },
 ];
 
 function statusTone(status: Status) {
   switch (status) {
     case "completed":
-      return "bg-green-100 text-green-800 border-green-200";
+      return "!bg-slate-100 !text-emerald-700 !border-slate-200";
     case "scheduled":
-      return "bg-blue-100 text-blue-800 border-blue-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
     case "changed":
-      return "bg-amber-100 text-amber-800 border-amber-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
     case "canceled":
-      return "bg-red-100 text-red-800 border-red-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
     case "inferred":
-      return "bg-slate-100 text-slate-800 border-slate-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
   }
 }
 
 export default function ArtemisMiniAppPrototype() {
+  const [milestones, setMilestones] = useState<Milestone[]>(() => createBundledMilestones());
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<string>("all");
   const [showOnlyChanges, setShowOnlyChanges] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState("Apr 4, 2026 12:00 AM EDT");
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [showOptionalEvents, setShowOptionalEvents] = useState(false);
+  const [selectedTimeZone, setSelectedTimeZone] = useState("UTC");
+  const [timeZoneMenuOpen, setTimeZoneMenuOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("Bundled schedule");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [live, setLive] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const refreshingRef = useRef(false);
+  const refreshDataRef = useRef<() => Promise<void>>(async () => {});
+  const timeZoneMenuRef = useRef<HTMLDivElement | null>(null);
+
+  function applySchedule(data: ScheduleResponse) {
+    setMilestones(data.milestones);
+    setLastUpdated(formatScheduleTimestamp(data.checkedAt));
+    setLive(data.live);
+    setRefreshError(null);
+  }
+
+  refreshDataRef.current = async () => {
+    if (refreshingRef.current) return;
+
+    refreshingRef.current = true;
+    setIsRefreshing(true);
+    setRefreshError(null);
+    console.info("[Artemis schedule] Refresh started");
+
+    try {
+      const data = await fetchSchedule();
+      applySchedule(data);
+      console.info("[Artemis schedule] Refresh succeeded", {
+        checkedAt: data.checkedAt,
+        live: data.live,
+        sourceCount: data.sources.length,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Refresh failed";
+      setRefreshError(message);
+      console.error("[Artemis schedule] Refresh failed", {
+        message,
+      });
+    } finally {
+      refreshingRef.current = false;
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = window.setInterval(() => {
-      setLastUpdated(new Date().toLocaleString());
-    }, 60000);
-    return () => window.clearInterval(interval);
-  }, [autoRefresh]);
+    void refreshDataRef.current();
+  }, []);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!timeZoneMenuRef.current?.contains(event.target as Node)) {
+        setTimeZoneMenuOpen(false);
+      }
+    }
+
+    if (timeZoneMenuOpen) {
+      document.addEventListener("mousedown", handlePointerDown);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [timeZoneMenuOpen]);
+
+  const visibleMilestones = useMemo(() => milestones.filter((m) => showOptionalEvents || !m.optional), [milestones, showOptionalEvents]);
 
   const filtered = useMemo(() => {
-    return milestones.filter((m) => {
+    return visibleMilestones.filter((m) => {
       const haystack = [m.title, m.latest, m.baseline, m.source, m.note, m.phase]
         .filter(Boolean)
         .join(" ")
@@ -316,16 +138,18 @@ export default function ArtemisMiniAppPrototype() {
       const matchesChange = !showOnlyChanges || ["changed", "canceled", "inferred"].includes(m.status);
       return matchesQuery && matchesPhase && matchesChange;
     });
-  }, [query, phase, showOnlyChanges]);
+  }, [visibleMilestones, query, phase, showOnlyChanges]);
 
   const counts = useMemo(
     () => ({
-      completed: milestones.filter((m) => m.status === "completed").length,
-      scheduled: milestones.filter((m) => m.status === "scheduled").length,
-      changed: milestones.filter((m) => ["changed", "canceled", "inferred"].includes(m.status)).length,
+      completed: visibleMilestones.filter((m) => m.status === "completed").length,
+      scheduled: visibleMilestones.filter((m) => m.status === "scheduled").length,
+      changed: visibleMilestones.filter((m) => ["changed", "canceled", "inferred"].includes(m.status)).length,
     }),
-    []
+    [visibleMilestones]
   );
+
+  const selectedTimeZoneOption = TIME_ZONE_OPTIONS.find((option) => option.value === selectedTimeZone) ?? TIME_ZONE_OPTIONS[0];
 
   return (
     <div className="min-h-screen bg-white p-4 md:p-8">
@@ -343,7 +167,7 @@ export default function ArtemisMiniAppPrototype() {
             </Badge>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Artemis II mission schedule</h1>
-          <p className="max-w-3xl text-sm text-slate-600">
+          <p className="max-w-3xl text-sm leading-6 text-slate-600">
             A simple, shareable view of key mission milestones with NASA time, UTC, baseline plan, latest public status,
             and source freshness.
           </p>
@@ -356,35 +180,38 @@ export default function ArtemisMiniAppPrototype() {
         </div>
 
         <Card className="rounded-2xl shadow-sm">
-          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+          <CardContent className="flex flex-col gap-3 p-4 pt-4 md:flex-row md:items-center md:justify-between">
             <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-3 md:gap-6">
               <div>
-                <span className="font-medium text-slate-900">Last updated:</span> {lastUpdated}
+                Last updated: {lastUpdated}
               </div>
               <div>
-                <span className="font-medium text-slate-900">Refresh:</span>{" "}
-                {autoRefresh ? "Every 1 min (demo)" : "Manual / static demo"}
+                Refresh: Manual
               </div>
               <div>
-                <span className="font-medium text-slate-900">Data mode:</span> NASA public update demo
+                Data mode: {live ? "Live NASA public sources" : "Bundled fallback schedule"}
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="rounded-full" onClick={() => setLastUpdated(new Date().toLocaleString())}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-              </Button>
-              <Button variant={autoRefresh ? "default" : "outline"} className="rounded-full" onClick={() => setAutoRefresh((v) => !v)}>
-                {autoRefresh ? "Auto-refresh on" : "Auto-refresh off"}
+              <Button variant="outline" className="rounded-full" onClick={() => void refreshDataRef.current()} disabled={isRefreshing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                {isRefreshing ? "Refreshing" : "Refresh"}
               </Button>
             </div>
           </CardContent>
         </Card>
 
+        {refreshError ? (
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-4 text-sm text-red-700">{refreshError}</CardContent>
+          </Card>
+        ) : null}
+
         <Card className="rounded-2xl shadow-sm">
           <CardHeader className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <CardTitle className="text-xl">Milestone table</CardTitle>
-              <div className="text-sm text-slate-500">Demo data from NASA public updates</div>
+              <div className="text-sm text-slate-500">Live schedule from NASA public updates, with bundled fallback data</div>
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -412,6 +239,13 @@ export default function ArtemisMiniAppPrototype() {
                 >
                   <Filter className="mr-2 h-4 w-4" /> Changed only
                 </Button>
+                <Button
+                  variant={showOptionalEvents ? "default" : "outline"}
+                  className="rounded-full"
+                  onClick={() => setShowOptionalEvents((v) => !v)}
+                >
+                  {showOptionalEvents ? "Optional events on" : "Show demos / tests"}
+                </Button>
               </div>
             </div>
 
@@ -429,7 +263,43 @@ export default function ArtemisMiniAppPrototype() {
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Milestone</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Status</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">NASA time</th>
-                    <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">UTC</th>
+                    <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">
+                      <div ref={timeZoneMenuRef} className="relative flex min-w-[220px] items-center gap-2">
+                        <span>{selectedTimeZoneOption.headerLabel}</span>
+                        <Button
+                          variant="outline"
+                          className="h-8 min-w-8 rounded-full border-slate-200 px-0 text-slate-500 hover:text-slate-900"
+                          aria-label="Choose time zone"
+                          aria-expanded={timeZoneMenuOpen}
+                          onClick={() => setTimeZoneMenuOpen((open) => !open)}
+                        >
+                          <Globe className="h-4 w-4 shrink-0 stroke-[2.25] text-slate-600" />
+                        </Button>
+                        {timeZoneMenuOpen ? (
+                          <div className="absolute left-0 top-full z-20 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                            <div className="border-b border-slate-100 px-3 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                              Time zone
+                            </div>
+                            <div className="max-h-80 overflow-y-auto p-1">
+                              {TIME_ZONE_OPTIONS.map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setSelectedTimeZone(option.value);
+                                    setTimeZoneMenuOpen(false);
+                                  }}
+                                >
+                                  <span>{option.label}</span>
+                                  {option.value === selectedTimeZone ? <Check className="h-4 w-4 text-slate-500" /> : null}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Baseline plan</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Latest public status</th>
                     <th className="sticky top-0 bg-white px-4 py-3 text-left font-semibold text-slate-900">Source freshness</th>
@@ -439,18 +309,32 @@ export default function ArtemisMiniAppPrototype() {
                   {filtered.map((m) => (
                     <tr key={m.id} className="align-top odd:bg-slate-50/60">
                       <td className="border-t border-slate-200 px-4 py-4">
-                        <div className="font-medium text-slate-900">{m.title}</div>
+                        <div className="font-medium text-slate-900">
+                          <span>{m.title}</span>
+                          {m.optional && m.optionalKind ? (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 inline-flex rounded-full border-slate-200 bg-slate-50 px-2 py-0 align-middle text-[10px] uppercase tracking-wide text-slate-500"
+                            >
+                              {m.optionalKind}
+                            </Badge>
+                          ) : null}
+                        </div>
                         <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">{m.phase}</div>
                         {m.note ? <div className="mt-2 text-xs text-slate-500">{m.note}</div> : null}
                       </td>
                       <td className="border-t border-slate-200 px-4 py-4">
                         <div className="flex flex-col gap-2">
-                          <Badge className={`w-fit rounded-full ${statusTone(m.status)}`}>{m.status}</Badge>
+                          <Badge variant="outline" className={`w-fit rounded-full ${statusTone(m.status)}`}>
+                            {m.status}
+                          </Badge>
                           <span className="text-xs text-slate-500">{m.confidence} confidence</span>
                         </div>
                       </td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.edt || "—"}</td>
-                      <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.utc || "—"}</td>
+                      <td className="border-t border-slate-200 px-4 py-4 text-slate-700">
+                        {formatMilestoneTimeInZone(m.timeSpec, selectedTimeZone)}
+                      </td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.baseline || "—"}</td>
                       <td className="border-t border-slate-200 px-4 py-4 text-slate-700">{m.latest || "—"}</td>
                       <td className="border-t border-slate-200 px-4 py-4">
