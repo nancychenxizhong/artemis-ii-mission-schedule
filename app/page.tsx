@@ -12,15 +12,15 @@ import { BASE_MILESTONES, Milestone, ScheduleResponse, Status } from "@/lib/arte
 function statusTone(status: Status) {
   switch (status) {
     case "completed":
-      return "bg-green-100 text-green-800 border-green-200";
+      return "!bg-slate-100 !text-emerald-700 !border-slate-200";
     case "scheduled":
-      return "bg-blue-100 text-blue-800 border-blue-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
     case "changed":
-      return "bg-amber-100 text-amber-800 border-amber-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
     case "canceled":
-      return "bg-red-100 text-red-800 border-red-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
     case "inferred":
-      return "bg-slate-100 text-slate-800 border-slate-200";
+      return "!bg-slate-100 !text-slate-800 !border-slate-200";
   }
 }
 
@@ -29,6 +29,7 @@ export default function ArtemisMiniAppPrototype() {
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<string>("all");
   const [showOnlyChanges, setShowOnlyChanges] = useState(false);
+  const [showOptionalEvents, setShowOptionalEvents] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("Bundled schedule");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [live, setLive] = useState(false);
@@ -75,8 +76,10 @@ export default function ArtemisMiniAppPrototype() {
     void refreshDataRef.current();
   }, []);
 
+  const visibleMilestones = useMemo(() => milestones.filter((m) => showOptionalEvents || !m.optional), [milestones, showOptionalEvents]);
+
   const filtered = useMemo(() => {
-    return milestones.filter((m) => {
+    return visibleMilestones.filter((m) => {
       const haystack = [m.title, m.latest, m.baseline, m.source, m.note, m.phase]
         .filter(Boolean)
         .join(" ")
@@ -86,15 +89,15 @@ export default function ArtemisMiniAppPrototype() {
       const matchesChange = !showOnlyChanges || ["changed", "canceled", "inferred"].includes(m.status);
       return matchesQuery && matchesPhase && matchesChange;
     });
-  }, [milestones, query, phase, showOnlyChanges]);
+  }, [visibleMilestones, query, phase, showOnlyChanges]);
 
   const counts = useMemo(
     () => ({
-      completed: milestones.filter((m) => m.status === "completed").length,
-      scheduled: milestones.filter((m) => m.status === "scheduled").length,
-      changed: milestones.filter((m) => ["changed", "canceled", "inferred"].includes(m.status)).length,
+      completed: visibleMilestones.filter((m) => m.status === "completed").length,
+      scheduled: visibleMilestones.filter((m) => m.status === "scheduled").length,
+      changed: visibleMilestones.filter((m) => ["changed", "canceled", "inferred"].includes(m.status)).length,
     }),
-    [milestones]
+    [visibleMilestones]
   );
 
   return (
@@ -185,6 +188,13 @@ export default function ArtemisMiniAppPrototype() {
                 >
                   <Filter className="mr-2 h-4 w-4" /> Changed only
                 </Button>
+                <Button
+                  variant={showOptionalEvents ? "default" : "outline"}
+                  className="rounded-full"
+                  onClick={() => setShowOptionalEvents((v) => !v)}
+                >
+                  {showOptionalEvents ? "Optional events on" : "Show demos / tests"}
+                </Button>
               </div>
             </div>
 
@@ -218,7 +228,9 @@ export default function ArtemisMiniAppPrototype() {
                       </td>
                       <td className="border-t border-slate-200 px-4 py-4">
                         <div className="flex flex-col gap-2">
-                          <Badge className={`w-fit rounded-full ${statusTone(m.status)}`}>{m.status}</Badge>
+                          <Badge variant="outline" className={`w-fit rounded-full ${statusTone(m.status)}`}>
+                            {m.status}
+                          </Badge>
                           <span className="text-xs text-slate-500">{m.confidence} confidence</span>
                         </div>
                       </td>

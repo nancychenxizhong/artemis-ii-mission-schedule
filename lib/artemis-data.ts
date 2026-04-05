@@ -4,6 +4,7 @@ export type Milestone = {
   id: string;
   title: string;
   phase: "launch" | "outbound" | "lunar" | "return";
+  optional?: boolean;
   status: Status;
   edt?: string;
   utc?: string;
@@ -151,6 +152,34 @@ export const BASE_MILESTONES: Milestone[] = [
     confidence: "high",
   },
   {
+    id: "manual-piloting-demo",
+    title: "Manual Piloting Demonstration",
+    phase: "outbound",
+    optional: true,
+    status: "changed",
+    edt: "Apr 4, 9:09 PM EDT",
+    utc: "Apr 5, 1:09 AM UTC",
+    baseline: "Flight Day 4 deep-space piloting objective",
+    latest: "Completed; crew manually piloted Orion for 41 minutes in deep space",
+    source: "Flight Day 4 update",
+    sourceFreshness: "Apr 4",
+    confidence: "high",
+  },
+  {
+    id: "crew-suit-test",
+    title: "Crew Survival System Suit Flight Test",
+    phase: "outbound",
+    optional: true,
+    status: "scheduled",
+    edt: "Apr 5, 2:20 PM EDT",
+    utc: "Apr 5, 6:20 PM UTC",
+    baseline: "Detailed flight test objective",
+    latest: "Scheduled",
+    source: "Coverage page",
+    sourceFreshness: "Updated Apr 3",
+    confidence: "high",
+  },
+  {
     id: "otc3",
     title: "Outbound Trajectory Correction-3",
     phase: "outbound",
@@ -236,6 +265,20 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 9, 10:53 PM EDT",
     utc: "Apr 10, 2:53 AM UTC",
     baseline: "Planned",
+    latest: "Scheduled",
+    source: "Coverage page",
+    sourceFreshness: "Updated Apr 3",
+    confidence: "high",
+  },
+  {
+    id: "radiation-shield-demo",
+    title: "Radiation Shielding Deployment Demo",
+    phase: "return",
+    optional: true,
+    status: "scheduled",
+    edt: "Apr 8, 8:15 PM EDT",
+    utc: "Apr 9, 12:15 AM UTC",
+    baseline: "Planned flight demonstration",
     latest: "Scheduled",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
