@@ -40,6 +40,11 @@ type BuildScheduleDeps = {
   now?: () => Date;
 };
 
+// TODO: stripHtml is a regex approximation, not a real HTML parser. It handles the common
+// entities and tag patterns NASA uses today, but silently produces wrong text on malformed
+// markup or entity sequences it doesn't know about. If matching reliability becomes a
+// problem, replace with a lightweight parser (e.g. node-html-parser or DOMParser in a
+// server context) rather than extending the regex list further.
 function stripHtml(html: string) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -333,6 +338,11 @@ function applyMissionUpdatePage(milestones: Milestone[], page: PageResult) {
       milestone.status = config.status;
       milestone.latestDetail = config.latestDetail;
     }
+    // TODO: there is currently no signal when a config entry's confirmText stops matching
+    // a page that was routed to it (i.e. the page is about OTC-1 but the cancel phrase
+    // changed wording). The milestone silently stays at its previous status. Consider
+    // recording a structured warning in the SourceCheck or a separate diagnostics field
+    // so ops can detect when NASA has changed page wording and patterns need updating.
   }
 }
 
