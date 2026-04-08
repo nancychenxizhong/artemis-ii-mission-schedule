@@ -10,10 +10,10 @@
     "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/**/*.test.js"
   },
   "dependencies": {
-    "lucide-react": "^0.554.0",
     "next": "15.5.14",
     "react": "19.2.1",
-    "react-dom": "19.2.1"
+    "react-dom": "19.2.1",
+    "lucide-react": "^0.554.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.14",
@@ -22,6 +22,6 @@
     "@types/react-dom": "^19.2.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
-    "typescript": "5.9.3"
+    "typescript": "^5.9.3"
   }
 }
