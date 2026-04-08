@@ -16,6 +16,7 @@ const FALLBACK_BLOG_URLS = [
 ] as const;
 
 const MAX_DISCOVERED_BLOGS = 6;
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 type PageResult = {
   url: string;
@@ -47,8 +48,10 @@ function stripHtml(html: string) {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
-    .replace(/&#8217;/g, "'")
-    .replace(/&#8211;/g, "-")
+    .replace(/&#8217;|&#x2019;|\u2019/g, "'")
+    .replace(/&#8216;|&#x2018;|\u2018/g, "'")
+    .replace(/&#8211;|&#x2013;|\u2013/g, "-")
+    .replace(/&#8212;|&#x2014;|\u2014/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -140,7 +143,8 @@ async function fetchPage(url: string, fetchImpl: FetchLike): Promise<PageResult>
       },
     });
 
-    const html = await response.text();
+    const raw = await response.text();
+    const html = raw.length > MAX_RESPONSE_BYTES ? raw.slice(0, MAX_RESPONSE_BYTES) : raw;
     return {
       url,
       ok: response.ok,
@@ -220,78 +224,80 @@ function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now
     if (!milestone) continue;
     if (page.text.includes(item.phrase)) {
       const endMs = milestoneEndMs(milestone);
-      if (endMs !== null && endMs < nowMs) {
-        milestone.status = "completed";
-        milestone.latestDetail = item.completedDetail;
-      } else {
-        milestone.status = "scheduled";
-        milestone.latestDetail = undefined;
+      if (endMs !== null) {
+        if (endMs < nowMs) {
+          milestone.status = "completed";
+          milestone.latestDetail = item.completedDetail;
+        } else {
+          milestone.status = "scheduled";
+          milestone.latestDetail = undefined;
+        }
       }
     }
   }
 }
 
-function updateOtc1(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "otc1");
-  if (!milestone) return;
-  const freshness = extractFreshness(page.html, "Checked live from OTC-1 update");
-  milestone.sourceFreshness = freshness;
-  if (/cancel(?:ed)?\s+the\s+spacecraft'?s\s+first\s+outbound\s+trajectory\s+correction\s+burn/i.test(page.text)) {
-    milestone.status = "canceled";
-    milestone.latestDetail = "Orion already on the right flight path";
-  }
-}
+type BlogMilestoneConfig = {
+  id: string;
+  urlHint?: string;
+  /** Broad match used for routing: URL contains urlHint OR page text matches triggerText. */
+  triggerText: RegExp;
+  /** Specific confirmation check. Defaults to triggerText when absent. */
+  confirmText?: RegExp;
+  status: Status;
+  latestDetail: string;
+  freshnessLabel: string;
+};
 
-function updateCommsTest(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "comms-test");
-  if (!milestone) return;
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from Flight Day 3 update");
-  if (/testing\s+the\s+spacecraft'?s\s+emergency\s+communications\s+system/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "emergency communications system and optical link activity publicly confirmed, exact wall-clock time not posted";
-  }
-}
-
-function updateTli(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "tli");
-  if (!milestone) return;
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from TLI update");
-  if (/completes?\s+TLI\s+burn|translunar\s+injection\s+burn/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "crew began journey to the Moon";
-  }
-}
-
-function updateLaunch(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "launch");
-  if (!milestone) return;
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from launch-day updates");
-  if (/Live launch day updates/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "at 6:35 PM EDT";
-  }
-}
+const BLOG_MILESTONE_CONFIGS: BlogMilestoneConfig[] = [
+  {
+    id: "launch",
+    urlHint: "launch-day",
+    triggerText: /Live launch day updates/i,
+    status: "completed",
+    latestDetail: "at 6:35 PM EDT",
+    freshnessLabel: "Checked live from launch-day updates",
+  },
+  {
+    id: "tli",
+    urlHint: "tli-burn",
+    triggerText: /completes?\s+TLI\s+burn|translunar\s+injection\s+burn/i,
+    status: "completed",
+    latestDetail: "crew began journey to the Moon",
+    freshnessLabel: "Checked live from TLI update",
+  },
+  {
+    id: "otc1",
+    urlHint: "outbound-trajectory-correction-burn-update",
+    triggerText: /outbound\s+trajectory\s+correction\s+burn/i,
+    confirmText: /cancel(?:l?ed)?\s+the\s+spacecraft[\u2019']s\s+first\s+outbound\s+trajectory\s+correction\s+burn/i,
+    status: "canceled",
+    latestDetail: "Orion already on the right flight path",
+    freshnessLabel: "Checked live from OTC-1 update",
+  },
+  {
+    id: "comms-test",
+    urlHint: "crew-prepares-cabin-for-lunar-flyby",
+    triggerText: /emergency\s+communications?\s+system|optical\s+communications?/i,
+    confirmText: /testing\s+the\s+spacecraft[\u2019']s\s+emergency\s+communications?\s+system/i,
+    status: "completed",
+    latestDetail: "emergency communications system and optical link activity publicly confirmed, exact wall-clock time not posted",
+    freshnessLabel: "Checked live from Flight Day 3 update",
+  },
+  {
+    id: "manual-piloting-demo",
+    urlHint: "manual-piloting-demonstration",
+    triggerText: /manual\s+piloting\s+demonstration|controlling\s+the\s+spacecraft/i,
+    status: "completed",
+    latestDetail: "crew manually piloted Orion for 41 minutes in deep space",
+    freshnessLabel: "Checked live from Flight Day 4 update",
+  },
+];
 
 function updateDailyAgendaBackfill(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.html) return;
   const freshness = extractFreshness(page.html, "Checked live from Daily Agenda");
   setManyFreshness(milestones, ["perigee-raise-icps", "apogee-raise", "proximity-ops"], freshness);
-}
-
-function updateManualPilotingDemo(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "manual-piloting-demo");
-  if (!milestone) return;
-
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from Flight Day 4 update");
-  if (/manual\s+piloting\s+demonstration|controlling\s+the\s+spacecraft/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "crew manually piloted Orion for 41 minutes in deep space";
-  }
 }
 
 function inferPastMilestones(milestones: Milestone[], now: Date) {
@@ -307,40 +313,26 @@ function inferPastMilestones(milestones: Milestone[], now: Date) {
 }
 
 function applyMissionUpdatePage(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text) return;
+  if (!page.ok || !page.text || !page.html) return;
 
   const lowerUrl = page.url.toLowerCase();
-  const lowerText = page.text.toLowerCase();
 
-  if (lowerUrl.includes("launch-day") || lowerText.includes("live launch day updates")) {
-    updateLaunch(milestones, page);
-  }
+  for (const config of BLOG_MILESTONE_CONFIGS) {
+    const isRouted =
+      (config.urlHint !== undefined && lowerUrl.includes(config.urlHint)) ||
+      config.triggerText.test(page.text);
+    if (!isRouted) continue;
 
-  if (lowerUrl.includes("tli-burn") || /completes?\s+tli\s+burn|translunar\s+injection\s+burn/i.test(page.text)) {
-    updateTli(milestones, page);
-  }
+    const milestone = milestones.find((m) => m.id === config.id);
+    if (!milestone) continue;
 
-  if (
-    lowerUrl.includes("outbound-trajectory-correction-burn-update") ||
-    /outbound\s+trajectory\s+correction\s+burn/i.test(page.text)
-  ) {
-    updateOtc1(milestones, page);
-  }
+    milestone.sourceFreshness = extractFreshness(page.html, config.freshnessLabel);
 
-  if (
-    lowerUrl.includes("crew-prepares-cabin-for-lunar-flyby") ||
-    /emergency\s+communications\s+system/i.test(page.text) ||
-    /optical\s+communications?/i.test(page.text)
-  ) {
-    updateCommsTest(milestones, page);
-  }
-
-  if (
-    lowerUrl.includes("manual-piloting-demonstration") ||
-    /manual\s+piloting\s+demonstration/i.test(page.text) ||
-    /controlling\s+the\s+spacecraft/i.test(page.text)
-  ) {
-    updateManualPilotingDemo(milestones, page);
+    const confirmPattern = config.confirmText ?? config.triggerText;
+    if (confirmPattern.test(page.text)) {
+      milestone.status = config.status;
+      milestone.latestDetail = config.latestDetail;
+    }
   }
 }
 
