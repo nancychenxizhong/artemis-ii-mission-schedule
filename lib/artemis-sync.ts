@@ -15,7 +15,8 @@ const FALLBACK_BLOG_URLS = [
   "https://www.nasa.gov/blogs/missions/2026/04/01/live-artemis-ii-launch-day-updates/",
 ] as const;
 
-const MAX_DISCOVERED_BLOGS = 6;
+const MAX_DISCOVERED_BLOGS = 12;
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 type PageResult = {
   url: string;
@@ -39,6 +40,11 @@ type BuildScheduleDeps = {
   now?: () => Date;
 };
 
+// TODO: stripHtml is a regex approximation, not a real HTML parser. It handles the common
+// entities and tag patterns NASA uses today, but silently produces wrong text on malformed
+// markup or entity sequences it doesn't know about. If matching reliability becomes a
+// problem, replace with a lightweight parser (e.g. node-html-parser or DOMParser in a
+// server context) rather than extending the regex list further.
 function stripHtml(html: string) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -47,8 +53,10 @@ function stripHtml(html: string) {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
-    .replace(/&#8217;/g, "'")
-    .replace(/&#8211;/g, "-")
+    .replace(/&#8217;|&#x2019;|\u2019/g, "'")
+    .replace(/&#8216;|&#x2018;|\u2018/g, "'")
+    .replace(/&#8211;|&#x2013;|\u2013/g, "-")
+    .replace(/&#8212;|&#x2014;|\u2014/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -140,7 +148,8 @@ async function fetchPage(url: string, fetchImpl: FetchLike): Promise<PageResult>
       },
     });
 
-    const html = await response.text();
+    const raw = await response.text();
+    const html = raw.length > MAX_RESPONSE_BYTES ? raw.slice(0, MAX_RESPONSE_BYTES) : raw;
     return {
       url,
       ok: response.ok,
@@ -158,15 +167,6 @@ async function fetchPage(url: string, fetchImpl: FetchLike): Promise<PageResult>
   }
 }
 
-function setManyFreshness(milestones: Milestone[], ids: string[], freshness: string) {
-  for (const id of ids) {
-    const milestone = milestones.find((item) => item.id === id);
-    if (milestone) {
-      milestone.sourceFreshness = freshness;
-    }
-  }
-}
-
 function milestoneEndMs(milestone: Milestone): number | null {
   if (!milestone.timeSpec) return null;
   return milestone.timeSpec.kind === "instant"
@@ -174,122 +174,107 @@ function milestoneEndMs(milestone: Milestone): number | null {
     : new Date(milestone.timeSpec.endUtc).getTime();
 }
 
+/**
+ * Returns the keywords to search for in blog text for this milestone.
+ * Uses milestone.blogKeywords when set; otherwise derives terms from the title:
+ * - Extracts uppercase acronyms from parentheses: "(TLI)" → "tli"
+ * - Uses the main title text (parenthetical content stripped, "+" normalised)
+ */
+function deriveMilestoneKeywords(milestone: Milestone): string[] {
+  if (milestone.blogKeywords && milestone.blogKeywords.length > 0) {
+    return milestone.blogKeywords;
+  }
+  const keywords: string[] = [];
+  for (const m of milestone.title.matchAll(/\(([A-Z][A-Z0-9-]{1,5})\)/g)) {
+    keywords.push(m[1].toLowerCase());
+  }
+  const main = milestone.title
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (main.length >= 4) keywords.push(main);
+  return keywords;
+}
+
+/**
+ * Produces a human-readable source label from a NASA blog URL slug.
+ * e.g. "…flight-day-5-otc2-burn…" → "Flight Day 5 update"
+ */
+function labelFromBlogUrl(url: string): string {
+  const slug = url.split("/").filter(Boolean).pop() ?? "";
+  const dayMatch = slug.match(/flight-day-(\d+)/i);
+  if (dayMatch) return `Flight Day ${dayMatch[1]} update`;
+  if (/launch.day/i.test(slug)) return "Launch day update";
+  const label = slug.replace(/-/g, " ").replace(/\bartemis\s*ii?\b/gi, "").trim().slice(0, 50);
+  return label || "Mission update";
+}
+
+// Sentences that plan or describe an upcoming event — not evidence of completion.
+const PLANNING_RE = /\b(will|plan(?:ned|ning)?|schedul|upcoming|expect(?:ed)?|intend|shall|slated|targeted|set\s+to|prepar(?:es|ing)|getting\s+ready|ahead\s+of|prior\s+to)\b/i;
+// Language indicating an event was canceled or not needed.
+const CANCEL_RE = /\b(cancell?(?:ed|ing|ation)?|scrub(?:bed)?|not\s+needed|no\s+longer\s+needed|waived)\b/i;
+
+/**
+ * Scans page text sentence-by-sentence for evidence that a milestone occurred.
+ * Returns the outcome kind and the raw sentence as the detail, or null if not found.
+ *
+ * Any sentence that mentions a keyword without future-tense planning language is
+ * treated as evidence the event happened — consistent with how NASA mission blog
+ * posts are written (present/past tense = it's happening or happened).
+ */
+function findMilestoneOutcome(
+  text: string,
+  keywords: string[]
+): { kind: "completed" | "canceled"; detail: string } | null {
+  const sentences = text.match(/[^.!?]+[.!?]*/g) ?? [];
+  for (const raw of sentences) {
+    const sentence = raw.trim();
+    if (sentence.length < 12) continue;
+    const lower = sentence.toLowerCase();
+    if (!keywords.some((k) => lower.includes(k))) continue;
+    if (PLANNING_RE.test(sentence)) continue;
+    if (CANCEL_RE.test(sentence)) {
+      return { kind: "canceled", detail: sentence.replace(/\s+/g, " ").slice(0, 250) };
+    }
+    return { kind: "completed", detail: sentence.replace(/\s+/g, " ").slice(0, 250) };
+  }
+  return null;
+}
+
+const COVERAGE_COMPLETED_DETAIL_DEFAULT = "confirmed on NASA coverage page; exact time not posted";
+
 function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now: Date) {
   if (!page.ok || !page.html || !page.text) return;
 
   const freshness = extractFreshness(page.html, "Checked live from coverage page");
-  setManyFreshness(
-    milestones,
-    [
-      "otc2",
-      "otc3",
-      "soi-in",
-      "closest-approach",
-      "max-distance",
-      "soi-out",
-      "rtc1",
-      "rtc2",
-      "crew-suit-test",
-      "radiation-shield-demo",
-      "rtc3",
-      "entry-interface",
-      "splashdown",
-    ],
-    freshness
-  );
-
-  const lineChecks: Array<{ id: string; phrase: string }> = [
-    { id: "otc2", phrase: "Outbound trajectory correction-2 burn" },
-    { id: "otc3", phrase: "Outbound trajectory correction-3 burn" },
-    { id: "soi-in", phrase: "Orion enters lunar sphere of influence" },
-    { id: "closest-approach", phrase: "Closest approach to the Moon" },
-    { id: "max-distance", phrase: "Maximum distance from Earth" },
-    { id: "soi-out", phrase: "Orion departs lunar sphere of influence" },
-    { id: "rtc1", phrase: "Return trajectory correction-1 burn" },
-    { id: "rtc2", phrase: "Return trajectory correction-2 burn" },
-    { id: "crew-suit-test", phrase: "Orion Crew Survival System Suit detailed flight test objectives" },
-    { id: "radiation-shield-demo", phrase: "Radiation shielding deployment demonstration" },
-    { id: "rtc3", phrase: "Return trajectory correction-3 burn" },
-    { id: "entry-interface", phrase: "Entry interface" },
-    { id: "splashdown", phrase: "Splashdown" },
-  ];
-
   const nowMs = now.getTime();
-  for (const item of lineChecks) {
-    const milestone = milestones.find((row) => row.id === item.id);
-    if (!milestone) continue;
-    if (page.text.includes(item.phrase)) {
+
+  for (const milestone of milestones) {
+    if (!milestone.coveragePhrase) continue;
+    milestone.sourceFreshness = freshness;
+    if (page.text.includes(milestone.coveragePhrase)) {
       const endMs = milestoneEndMs(milestone);
-      if (endMs !== null && endMs < nowMs) {
-        milestone.status = "completed";
-      } else {
-        milestone.status = "scheduled";
+      if (endMs !== null) {
+        if (endMs < nowMs) {
+          milestone.status = "completed";
+          milestone.latestDetail = milestone.coverageCompletedDetail ?? COVERAGE_COMPLETED_DETAIL_DEFAULT;
+        } else {
+          milestone.status = "scheduled";
+          milestone.latestDetail = undefined;
+        }
       }
-      milestone.latestDetail = undefined;
     }
-  }
-}
-
-function updateOtc1(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "otc1");
-  if (!milestone) return;
-  const freshness = extractFreshness(page.html, "Checked live from OTC-1 update");
-  milestone.sourceFreshness = freshness;
-  if (/cancel(?:ed)?\s+the\s+spacecraft'?s\s+first\s+outbound\s+trajectory\s+correction\s+burn/i.test(page.text)) {
-    milestone.status = "canceled";
-    milestone.latestDetail = "Orion already on the right flight path";
-  }
-}
-
-function updateCommsTest(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "comms-test");
-  if (!milestone) return;
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from Flight Day 3 update");
-  if (/testing\s+the\s+spacecraft'?s\s+emergency\s+communications\s+system/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "emergency communications system and optical link activity publicly confirmed, exact wall-clock time not posted";
-  }
-}
-
-function updateTli(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "tli");
-  if (!milestone) return;
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from TLI update");
-  if (/completes?\s+TLI\s+burn|translunar\s+injection\s+burn/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "crew began journey to the Moon";
-  }
-}
-
-function updateLaunch(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "launch");
-  if (!milestone) return;
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from launch-day updates");
-  if (/Live launch day updates/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "at 6:35 PM EDT";
   }
 }
 
 function updateDailyAgendaBackfill(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.html) return;
   const freshness = extractFreshness(page.html, "Checked live from Daily Agenda");
-  setManyFreshness(milestones, ["perigee-raise-icps", "apogee-raise", "proximity-ops"], freshness);
-}
-
-function updateManualPilotingDemo(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text || !page.html) return;
-  const milestone = milestones.find((row) => row.id === "manual-piloting-demo");
-  if (!milestone) return;
-
-  milestone.sourceFreshness = extractFreshness(page.html, "Checked live from Flight Day 4 update");
-  if (/manual\s+piloting\s+demonstration|controlling\s+the\s+spacecraft/i.test(page.text)) {
-    milestone.status = "completed";
-    milestone.latestDetail = "crew manually piloted Orion for 41 minutes in deep space";
+  for (const id of ["perigee-raise-icps", "apogee-raise", "proximity-ops"]) {
+    const m = milestones.find((item) => item.id === id);
+    if (m) m.sourceFreshness = freshness;
   }
 }
 
@@ -306,40 +291,19 @@ function inferPastMilestones(milestones: Milestone[], now: Date) {
 }
 
 function applyMissionUpdatePage(milestones: Milestone[], page: PageResult) {
-  if (!page.ok || !page.text) return;
+  if (!page.ok || !page.text || !page.html) return;
 
-  const lowerUrl = page.url.toLowerCase();
-  const lowerText = page.text.toLowerCase();
+  const freshness = extractFreshness(page.html, labelFromBlogUrl(page.url));
+  const sourceLabel = labelFromBlogUrl(page.url);
 
-  if (lowerUrl.includes("launch-day") || lowerText.includes("live launch day updates")) {
-    updateLaunch(milestones, page);
-  }
-
-  if (lowerUrl.includes("tli-burn") || /completes?\s+tli\s+burn|translunar\s+injection\s+burn/i.test(page.text)) {
-    updateTli(milestones, page);
-  }
-
-  if (
-    lowerUrl.includes("outbound-trajectory-correction-burn-update") ||
-    /outbound\s+trajectory\s+correction\s+burn/i.test(page.text)
-  ) {
-    updateOtc1(milestones, page);
-  }
-
-  if (
-    lowerUrl.includes("crew-prepares-cabin-for-lunar-flyby") ||
-    /emergency\s+communications\s+system/i.test(page.text) ||
-    /optical\s+communications?/i.test(page.text)
-  ) {
-    updateCommsTest(milestones, page);
-  }
-
-  if (
-    lowerUrl.includes("manual-piloting-demonstration") ||
-    /manual\s+piloting\s+demonstration/i.test(page.text) ||
-    /controlling\s+the\s+spacecraft/i.test(page.text)
-  ) {
-    updateManualPilotingDemo(milestones, page);
+  for (const milestone of milestones) {
+    const keywords = deriveMilestoneKeywords(milestone);
+    const outcome = findMilestoneOutcome(page.text, keywords);
+    if (!outcome) continue;
+    milestone.sourceFreshness = freshness;
+    milestone.source = sourceLabel;
+    milestone.status = outcome.kind;
+    milestone.latestDetail = outcome.detail;
   }
 }
 

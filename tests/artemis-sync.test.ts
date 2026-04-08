@@ -101,12 +101,13 @@ test("buildScheduleWithDeps applies live page updates into the bundled schedule"
   assert.equal(perigeeRaiseIcps?.status, "completed");
   assert.equal(proximityOps?.status, "completed");
   assert.equal(commsTest?.status, "completed");
-  assert.match(otc1?.latest ?? "", /right flight path/i);
-  assert.match(commsTest?.latest ?? "", /Completed; emergency communications system and optical link activity publicly confirmed/i);
+  // detail is the extracted sentence from the blog, not a pre-written string
+  assert.match(otc1?.latest ?? "", /Canceled;.*trajectory correction burn/i);
+  assert.match(commsTest?.latest ?? "", /emergency communications system/i);
   assert.equal(manualPilotingDemo?.status, "completed");
   assert.match(manualPilotingDemo?.latest ?? "", /41 minutes/i);
   assert.equal(tli?.status, "completed");
-  assert.match(tli?.latest ?? "", /journey to the Moon/i);
+  assert.match(tli?.latest ?? "", /TLI burn/i);
   assert.equal(crewSuitTest?.latest, "Scheduled");
   assert.equal(splashdown?.latest, "Scheduled");
   assert.equal(splashdown?.sourceFreshness, "April 4, 2026 7:00 PM");
@@ -182,4 +183,146 @@ test("buildScheduleWithDeps falls back cleanly when live fetches fail", async ()
   assert.equal(schedule.syncMessage, "Live NASA sync failed. Showing bundled fallback schedule.");
   assert(schedule.sources.every((source) => source.ok === false));
   assert(schedule.sources.every((source) => source.note === "network down"));
+});
+
+test("coverage milestones include source detail string when confirmed and past", async () => {
+  const LATER = new Date("2026-04-08T12:00:00.000Z");
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async (input) => ({
+      ok: true,
+      status: 200,
+      async text() {
+        if (input === "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/") {
+          return makeHtml(`
+            Updated: April 7, 2026 10:00 PM
+            Orion departs lunar sphere of influence
+            Return trajectory correction-1 burn
+          `);
+        }
+        return "<html><body></body></html>";
+      },
+    }),
+    now: () => LATER,
+  });
+
+  const soi_out = schedule.milestones.find((m) => m.id === "soi-out");
+  const rtc1 = schedule.milestones.find((m) => m.id === "rtc1");
+
+  assert.equal(soi_out?.status, "completed");
+  assert.match(
+    soi_out?.latest ?? "",
+    /Completed; confirmed on NASA coverage page; exact time not posted/i,
+    "soi-out latest should include coverage detail"
+  );
+  assert.equal(rtc1?.status, "completed");
+  assert.match(
+    rtc1?.latest ?? "",
+    /Completed; burn confirmed on NASA coverage page; exact time not posted/i,
+    "rtc1 latest should include burn-specific coverage detail"
+  );
+});
+
+test("partial fetch failure still reports live with partial source count", async () => {
+  const failUrls = new Set([
+    "https://www.nasa.gov/artemis-ii-news-and-updates/",
+    "https://www.nasa.gov/artemis-ii-media-resources/",
+  ]);
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async (input) => {
+      if (failUrls.has(input)) {
+        return { ok: false, status: 404, async text() { return ""; } };
+      }
+      return { ok: true, status: 200, async text() { return "<html><body></body></html>"; } };
+    },
+    now: () => NOW,
+  });
+
+  assert.equal(schedule.live, true, "at least one source succeeded → live");
+  assert.match(schedule.syncMessage, /Live NASA sync succeeded for \d+\/\d+ sources/);
+  const failedSources = schedule.sources.filter((s) => !s.ok);
+  assert(failedSources.length >= 2, "failed sources should be reported");
+  const okSources = schedule.sources.filter((s) => s.ok);
+  assert(okSources.length > 0, "some sources should succeed");
+});
+
+test("OTC-1 cancel detection handles curly apostrophe from HTML entities", async () => {
+  const pages = new Map<string, string>([
+    [
+      "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/",
+      makeHtml(""),
+    ],
+    [
+      "https://www.nasa.gov/missions/artemis/nasas-artemis-ii-moon-mission-daily-agenda/",
+      makeHtml(""),
+    ],
+    [
+      "https://www.nasa.gov/mission/artemis-ii/",
+      makeHtml(`<a href="/blogs/missions/2026/04/03/artemis-ii-flight-day-3-outbound-trajectory-correction-burn-update/">OTC</a>`),
+    ],
+    ["https://www.nasa.gov/artemis-ii-news-and-updates/", makeHtml("")],
+    ["https://www.nasa.gov/artemis-ii-media-resources/", makeHtml("")],
+    [
+      "https://www.nasa.gov/blogs/missions/2026/04/03/artemis-ii-flight-day-3-outbound-trajectory-correction-burn-update/",
+      // Uses HTML entity for curly apostrophe (&#8217;) as NASA pages commonly do
+      makeHtml("NASA canceled the spacecraft&#8217;s first outbound trajectory correction burn."),
+    ],
+  ]);
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async (input) => ({
+      ok: true,
+      status: 200,
+      async text() { return pages.get(input) ?? "<html><body></body></html>"; },
+    }),
+    now: () => NOW,
+  });
+
+  const otc1 = schedule.milestones.find((m) => m.id === "otc1");
+  assert.equal(otc1?.status, "canceled", "OTC-1 should be canceled even with HTML-entity apostrophe");
+  assert.match(otc1?.latest ?? "", /Canceled;.*trajectory correction burn/i);
+});
+
+test("blog post sets completed status even when coverage page shows milestone as scheduled", async () => {
+  // comms-test is in the future at NOW (Apr 4 12:00Z), so coverage page would mark it scheduled.
+  // The blog post arrives after coverage processing and should override to completed.
+  const pages = new Map<string, string>([
+    [
+      "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/",
+      // Coverage page lists comms-test phrase but NOW is before its scheduled window end
+      makeHtml("Updated: April 4, 2026 Orion Crew Survival System Suit detailed flight test objectives"),
+    ],
+    [
+      "https://www.nasa.gov/missions/artemis/nasas-artemis-ii-moon-mission-daily-agenda/",
+      makeHtml(""),
+    ],
+    [
+      "https://www.nasa.gov/mission/artemis-ii/",
+      makeHtml(`<a href="/blogs/missions/2026/04/04/artemis-ii-flight-day-3-crew-prepares-cabin-for-lunar-flyby/">comms</a>`),
+    ],
+    ["https://www.nasa.gov/artemis-ii-news-and-updates/", makeHtml("")],
+    ["https://www.nasa.gov/artemis-ii-media-resources/", makeHtml("")],
+    [
+      "https://www.nasa.gov/blogs/missions/2026/04/04/artemis-ii-flight-day-3-crew-prepares-cabin-for-lunar-flyby/",
+      makeHtml("The crew is testing the spacecraft's emergency communications system in deep space."),
+    ],
+  ]);
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async (input) => ({
+      ok: true,
+      status: 200,
+      async text() { return pages.get(input) ?? "<html><body></body></html>"; },
+    }),
+    now: () => NOW,
+  });
+
+  const commsTest = schedule.milestones.find((m) => m.id === "comms-test");
+  assert.equal(
+    commsTest?.status,
+    "completed",
+    "blog post confirmation should override coverage-page scheduled status"
+  );
+  assert.match(commsTest?.latest ?? "", /emergency communications system/i);
 });
