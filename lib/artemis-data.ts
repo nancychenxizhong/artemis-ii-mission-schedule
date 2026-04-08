@@ -25,6 +25,13 @@ export type Milestone = {
   baseline?: string;
   latest?: string;
   latestDetail?: string;
+  /** Literal phrase matched against the NASA coverage page to confirm this milestone. */
+  coveragePhrase?: string;
+  /**
+   * latestDetail to set when the coverage phrase is found and the milestone time has passed.
+   * Defaults to "confirmed on NASA coverage page; exact time not posted" when absent.
+   */
+  coverageCompletedDetail?: string;
   note?: string;
   source: string;
   sourceFreshness: string;
@@ -171,6 +178,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 4, 7:49 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-04T23:49:00Z" },
     baseline: "Planned burn",
+    coveragePhrase: "Outbound trajectory correction-2 burn",
+    coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -200,6 +209,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 5, 2:20 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-05T18:20:00Z" },
     baseline: "Detailed flight test objective",
+    coveragePhrase: "Orion Crew Survival System Suit detailed flight test objectives",
+    coverageCompletedDetail: "test confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -212,6 +223,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 5, 11:03 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-06T03:03:00Z" },
     baseline: "Planned burn",
+    coveragePhrase: "Outbound trajectory correction-3 burn",
+    coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -224,6 +237,7 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 6, 12:41 AM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-06T04:41:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Orion enters lunar sphere of influence",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -236,6 +250,7 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 6, 7:02 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-06T23:02:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Closest approach to the Moon",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -248,6 +263,7 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 6, 7:05 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-06T23:05:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Maximum distance from Earth",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -260,6 +276,7 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 7, 1:28 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-07T17:28:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Orion departs lunar sphere of influence",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -272,6 +289,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 7, 9:03 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-08T01:03:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Return trajectory correction-1 burn",
+    coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -284,6 +303,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 9, 10:53 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-10T02:53:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Return trajectory correction-2 burn",
+    coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -298,6 +319,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 8, 8:15 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-09T00:15:00Z" },
     baseline: "Planned flight demonstration",
+    coveragePhrase: "Radiation shielding deployment demonstration",
+    coverageCompletedDetail: "demo confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -310,6 +333,8 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 10, 2:53 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-10T18:53:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Return trajectory correction-3 burn",
+    coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -322,6 +347,7 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 10, 7:53 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-10T23:53:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Entry interface",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -334,6 +360,7 @@ export const BASE_MILESTONES: Milestone[] = [
     edt: "Apr 10, 8:07 PM EDT",
     timeSpec: { kind: "instant", instantUtc: "2026-04-11T00:07:00Z" },
     baseline: "Planned",
+    coveragePhrase: "Splashdown",
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",

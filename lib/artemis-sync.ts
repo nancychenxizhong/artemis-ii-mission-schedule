@@ -1,4 +1,4 @@
-import { Milestone, ScheduleResponse, SourceCheck, cloneBaseMilestones, finalizeMilestoneLatest } from "./artemis-data";
+import { Milestone, ScheduleResponse, SourceCheck, Status, cloneBaseMilestones, finalizeMilestoneLatest } from "./artemis-data";
 
 const COVERAGE_URL = "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/";
 const DAILY_AGENDA_URL = "https://www.nasa.gov/missions/artemis/nasas-artemis-ii-moon-mission-daily-agenda/";
@@ -167,15 +167,6 @@ async function fetchPage(url: string, fetchImpl: FetchLike): Promise<PageResult>
   }
 }
 
-function setManyFreshness(milestones: Milestone[], ids: string[], freshness: string) {
-  for (const id of ids) {
-    const milestone = milestones.find((item) => item.id === id);
-    if (milestone) {
-      milestone.sourceFreshness = freshness;
-    }
-  }
-}
-
 function milestoneEndMs(milestone: Milestone): number | null {
   if (!milestone.timeSpec) return null;
   return milestone.timeSpec.kind === "instant"
@@ -183,56 +174,23 @@ function milestoneEndMs(milestone: Milestone): number | null {
     : new Date(milestone.timeSpec.endUtc).getTime();
 }
 
+const COVERAGE_COMPLETED_DETAIL_DEFAULT = "confirmed on NASA coverage page; exact time not posted";
+
 function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now: Date) {
   if (!page.ok || !page.html || !page.text) return;
 
   const freshness = extractFreshness(page.html, "Checked live from coverage page");
-  setManyFreshness(
-    milestones,
-    [
-      "otc2",
-      "otc3",
-      "soi-in",
-      "closest-approach",
-      "max-distance",
-      "soi-out",
-      "rtc1",
-      "rtc2",
-      "crew-suit-test",
-      "radiation-shield-demo",
-      "rtc3",
-      "entry-interface",
-      "splashdown",
-    ],
-    freshness
-  );
-
-  const lineChecks: Array<{ id: string; phrase: string; completedDetail: string }> = [
-    { id: "otc2", phrase: "Outbound trajectory correction-2 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
-    { id: "otc3", phrase: "Outbound trajectory correction-3 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
-    { id: "soi-in", phrase: "Orion enters lunar sphere of influence", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
-    { id: "closest-approach", phrase: "Closest approach to the Moon", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
-    { id: "max-distance", phrase: "Maximum distance from Earth", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
-    { id: "soi-out", phrase: "Orion departs lunar sphere of influence", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
-    { id: "rtc1", phrase: "Return trajectory correction-1 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
-    { id: "rtc2", phrase: "Return trajectory correction-2 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
-    { id: "crew-suit-test", phrase: "Orion Crew Survival System Suit detailed flight test objectives", completedDetail: "test confirmed on NASA coverage page; exact time not posted" },
-    { id: "radiation-shield-demo", phrase: "Radiation shielding deployment demonstration", completedDetail: "demo confirmed on NASA coverage page; exact time not posted" },
-    { id: "rtc3", phrase: "Return trajectory correction-3 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
-    { id: "entry-interface", phrase: "Entry interface", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
-    { id: "splashdown", phrase: "Splashdown", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
-  ];
-
   const nowMs = now.getTime();
-  for (const item of lineChecks) {
-    const milestone = milestones.find((row) => row.id === item.id);
-    if (!milestone) continue;
-    if (page.text.includes(item.phrase)) {
+
+  for (const milestone of milestones) {
+    if (!milestone.coveragePhrase) continue;
+    milestone.sourceFreshness = freshness;
+    if (page.text.includes(milestone.coveragePhrase)) {
       const endMs = milestoneEndMs(milestone);
       if (endMs !== null) {
         if (endMs < nowMs) {
           milestone.status = "completed";
-          milestone.latestDetail = item.completedDetail;
+          milestone.latestDetail = milestone.coverageCompletedDetail ?? COVERAGE_COMPLETED_DETAIL_DEFAULT;
         } else {
           milestone.status = "scheduled";
           milestone.latestDetail = undefined;
@@ -302,7 +260,10 @@ const BLOG_MILESTONE_CONFIGS: BlogMilestoneConfig[] = [
 function updateDailyAgendaBackfill(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.html) return;
   const freshness = extractFreshness(page.html, "Checked live from Daily Agenda");
-  setManyFreshness(milestones, ["perigee-raise-icps", "apogee-raise", "proximity-ops"], freshness);
+  for (const id of ["perigee-raise-icps", "apogee-raise", "proximity-ops"]) {
+    const m = milestones.find((item) => item.id === id);
+    if (m) m.sourceFreshness = freshness;
+  }
 }
 
 function inferPastMilestones(milestones: Milestone[], now: Date) {
