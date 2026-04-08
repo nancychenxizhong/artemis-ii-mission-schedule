@@ -167,7 +167,14 @@ function setManyFreshness(milestones: Milestone[], ids: string[], freshness: str
   }
 }
 
-function updateCoverageMilestones(milestones: Milestone[], page: PageResult) {
+function milestoneEndMs(milestone: Milestone): number | null {
+  if (!milestone.timeSpec) return null;
+  return milestone.timeSpec.kind === "instant"
+    ? new Date(milestone.timeSpec.instantUtc).getTime()
+    : new Date(milestone.timeSpec.endUtc).getTime();
+}
+
+function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now: Date) {
   if (!page.ok || !page.html || !page.text) return;
 
   const freshness = extractFreshness(page.html, "Checked live from coverage page");
@@ -207,11 +214,17 @@ function updateCoverageMilestones(milestones: Milestone[], page: PageResult) {
     { id: "splashdown", phrase: "Splashdown" },
   ];
 
+  const nowMs = now.getTime();
   for (const item of lineChecks) {
     const milestone = milestones.find((row) => row.id === item.id);
     if (!milestone) continue;
     if (page.text.includes(item.phrase)) {
-      milestone.status = "scheduled";
+      const endMs = milestoneEndMs(milestone);
+      if (endMs !== null && endMs < nowMs) {
+        milestone.status = "completed";
+      } else {
+        milestone.status = "scheduled";
+      }
       milestone.latestDetail = undefined;
     }
   }
@@ -284,14 +297,8 @@ function inferPastMilestones(milestones: Milestone[], now: Date) {
   const nowMs = now.getTime();
   for (const milestone of milestones) {
     if (milestone.status !== "scheduled") continue;
-    if (!milestone.timeSpec) continue;
-
-    const endMs =
-      milestone.timeSpec.kind === "instant"
-        ? new Date(milestone.timeSpec.instantUtc).getTime()
-        : new Date(milestone.timeSpec.endUtc).getTime();
-
-    if (endMs < nowMs) {
+    const endMs = milestoneEndMs(milestone);
+    if (endMs !== null && endMs < nowMs) {
       milestone.status = "inferred";
       milestone.latestDetail = "scheduled time has passed; awaiting confirmation";
     }
@@ -370,7 +377,7 @@ export async function buildScheduleWithDeps({
 
   const missionUpdatePages = await Promise.all(discoveredBlogUrls.map((url) => fetchPage(url, fetchImpl)));
 
-  updateCoverageMilestones(milestones, coverage);
+  updateCoverageMilestones(milestones, coverage, now());
   updateDailyAgendaBackfill(milestones, dailyAgenda);
   for (const missionUpdatePage of missionUpdatePages) {
     applyMissionUpdatePage(milestones, missionUpdatePage);
