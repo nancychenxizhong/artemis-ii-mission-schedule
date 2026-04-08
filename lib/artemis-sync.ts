@@ -280,6 +280,24 @@ function updateManualPilotingDemo(milestones: Milestone[], page: PageResult) {
   }
 }
 
+function inferPastMilestones(milestones: Milestone[], now: Date) {
+  const nowMs = now.getTime();
+  for (const milestone of milestones) {
+    if (milestone.status !== "scheduled") continue;
+    if (!milestone.timeSpec) continue;
+
+    const endMs =
+      milestone.timeSpec.kind === "instant"
+        ? new Date(milestone.timeSpec.instantUtc).getTime()
+        : new Date(milestone.timeSpec.endUtc).getTime();
+
+    if (endMs < nowMs) {
+      milestone.status = "inferred";
+      milestone.latestDetail = "scheduled time has passed; awaiting confirmation";
+    }
+  }
+}
+
 function applyMissionUpdatePage(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.text) return;
 
@@ -357,6 +375,7 @@ export async function buildScheduleWithDeps({
   for (const missionUpdatePage of missionUpdatePages) {
     applyMissionUpdatePage(milestones, missionUpdatePage);
   }
+  inferPastMilestones(milestones, now());
   finalizeMilestoneLatest(milestones);
 
   const sources = [

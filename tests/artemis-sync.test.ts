@@ -112,6 +112,30 @@ test("buildScheduleWithDeps applies live page updates into the bundled schedule"
   assert.equal(splashdown?.sourceFreshness, "April 4, 2026 7:00 PM");
 });
 
+test("buildScheduleWithDeps infers past milestones whose scheduled time has elapsed", async () => {
+  const LATER = new Date("2026-04-08T12:00:00.000Z");
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async text() {
+        return "<html><body></body></html>";
+      },
+    }),
+    now: () => LATER,
+  });
+
+  const soi_out = schedule.milestones.find((m) => m.id === "soi-out");
+  const rtc1 = schedule.milestones.find((m) => m.id === "rtc1");
+  const splashdown = schedule.milestones.find((m) => m.id === "splashdown");
+
+  assert.equal(soi_out?.status, "inferred", "soi-out should be inferred (Apr 7 is past)");
+  assert.match(soi_out?.latest ?? "", /Inferred/i);
+  assert.equal(rtc1?.status, "inferred", "rtc1 should be inferred (Apr 7 is past)");
+  assert.equal(splashdown?.status, "scheduled", "splashdown should remain scheduled (Apr 10 is future)");
+});
+
 test("buildScheduleWithDeps falls back cleanly when live fetches fail", async () => {
   const schedule = await buildScheduleWithDeps({
     fetchImpl: async () => {
