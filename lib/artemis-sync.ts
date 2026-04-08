@@ -198,20 +198,20 @@ function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now
     freshness
   );
 
-  const lineChecks: Array<{ id: string; phrase: string }> = [
-    { id: "otc2", phrase: "Outbound trajectory correction-2 burn" },
-    { id: "otc3", phrase: "Outbound trajectory correction-3 burn" },
-    { id: "soi-in", phrase: "Orion enters lunar sphere of influence" },
-    { id: "closest-approach", phrase: "Closest approach to the Moon" },
-    { id: "max-distance", phrase: "Maximum distance from Earth" },
-    { id: "soi-out", phrase: "Orion departs lunar sphere of influence" },
-    { id: "rtc1", phrase: "Return trajectory correction-1 burn" },
-    { id: "rtc2", phrase: "Return trajectory correction-2 burn" },
-    { id: "crew-suit-test", phrase: "Orion Crew Survival System Suit detailed flight test objectives" },
-    { id: "radiation-shield-demo", phrase: "Radiation shielding deployment demonstration" },
-    { id: "rtc3", phrase: "Return trajectory correction-3 burn" },
-    { id: "entry-interface", phrase: "Entry interface" },
-    { id: "splashdown", phrase: "Splashdown" },
+  const lineChecks: Array<{ id: string; phrase: string; completedDetail: string }> = [
+    { id: "otc2", phrase: "Outbound trajectory correction-2 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
+    { id: "otc3", phrase: "Outbound trajectory correction-3 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
+    { id: "soi-in", phrase: "Orion enters lunar sphere of influence", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
+    { id: "closest-approach", phrase: "Closest approach to the Moon", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
+    { id: "max-distance", phrase: "Maximum distance from Earth", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
+    { id: "soi-out", phrase: "Orion departs lunar sphere of influence", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
+    { id: "rtc1", phrase: "Return trajectory correction-1 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
+    { id: "rtc2", phrase: "Return trajectory correction-2 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
+    { id: "crew-suit-test", phrase: "Orion Crew Survival System Suit detailed flight test objectives", completedDetail: "test confirmed on NASA coverage page; exact time not posted" },
+    { id: "radiation-shield-demo", phrase: "Radiation shielding deployment demonstration", completedDetail: "demo confirmed on NASA coverage page; exact time not posted" },
+    { id: "rtc3", phrase: "Return trajectory correction-3 burn", completedDetail: "burn confirmed on NASA coverage page; exact time not posted" },
+    { id: "entry-interface", phrase: "Entry interface", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
+    { id: "splashdown", phrase: "Splashdown", completedDetail: "confirmed on NASA coverage page; exact time not posted" },
   ];
 
   const nowMs = now.getTime();
@@ -222,10 +222,11 @@ function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now
       const endMs = milestoneEndMs(milestone);
       if (endMs !== null && endMs < nowMs) {
         milestone.status = "completed";
+        milestone.latestDetail = item.completedDetail;
       } else {
         milestone.status = "scheduled";
+        milestone.latestDetail = undefined;
       }
-      milestone.latestDetail = undefined;
     }
   }
 }
