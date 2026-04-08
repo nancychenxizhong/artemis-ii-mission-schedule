@@ -214,7 +214,7 @@ function labelFromBlogUrl(url: string): string {
 // Sentences that plan or describe an upcoming event — not evidence of completion.
 const PLANNING_RE = /\b(will|plan(?:ned|ning)?|schedul|upcoming|expect(?:ed)?|intend|shall|slated|targeted|set\s+to|prepar(?:es|ing)|getting\s+ready|ahead\s+of|prior\s+to)\b/i;
 // Language indicating an event was canceled or not needed.
-const CANCEL_RE = /\b(cancel|cancell|scrub|not\s+needed|no\s+longer\s+needed|waived)\b/i;
+const CANCEL_RE = /\b(cancell?(?:ed|ing|ation)?|scrub(?:bed)?|not\s+needed|no\s+longer\s+needed|waived)\b/i;
 
 /**
  * Scans page text sentence-by-sentence for evidence that a milestone occurred.

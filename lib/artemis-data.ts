@@ -112,6 +112,8 @@ export const BASE_MILESTONES: Milestone[] = [
     timeSpec: { kind: "instant", instantUtc: "2026-04-02T01:35:00Z", approximate: true },
     baseline: "Around 3 hours into the mission",
     latestDetail: "duration publicly described, exact start/end time not pinned down",
+    // Title uses "Demo" (abbreviated) but NASA blogs write the full word "demonstration".
+    blogKeywords: ["proximity operations demonstration", "proximity operations demo", "proximity ops"],
     source: "Daily Agenda + mission update",
     sourceFreshness: "Mar 13 baseline / Apr 1–2 update",
     confidence: "medium",
@@ -335,6 +337,8 @@ export const BASE_MILESTONES: Milestone[] = [
     baseline: "Planned flight demonstration",
     coveragePhrase: "Radiation shielding deployment demonstration",
     coverageCompletedDetail: "demo confirmed on NASA coverage page; exact time not posted",
+    // Title uses "Demo" (abbreviated) but NASA blogs write the full word "demonstration".
+    blogKeywords: ["radiation shielding deployment demonstration", "radiation shielding demonstration", "radiation shielding deployment demo"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
