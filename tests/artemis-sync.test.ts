@@ -112,6 +112,64 @@ test("buildScheduleWithDeps applies live page updates into the bundled schedule"
   assert.equal(splashdown?.sourceFreshness, "April 4, 2026 7:00 PM");
 });
 
+test("buildScheduleWithDeps marks past coverage milestones as completed from source", async () => {
+  const LATER = new Date("2026-04-08T12:00:00.000Z");
+
+  const coverageHtml = makeHtml(`
+    Updated: April 7, 2026 10:00 PM
+    Orion departs lunar sphere of influence
+    Return trajectory correction-1 burn
+    Splashdown
+  `);
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async (input) => ({
+      ok: true,
+      status: 200,
+      async text() {
+        if (input === "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/") {
+          return coverageHtml;
+        }
+        return "<html><body></body></html>";
+      },
+    }),
+    now: () => LATER,
+  });
+
+  const soi_out = schedule.milestones.find((m) => m.id === "soi-out");
+  const rtc1 = schedule.milestones.find((m) => m.id === "rtc1");
+  const splashdown = schedule.milestones.find((m) => m.id === "splashdown");
+
+  assert.equal(soi_out?.status, "completed", "soi-out confirmed on coverage page + past → completed");
+  assert.match(soi_out?.latest ?? "", /Completed/i);
+  assert.equal(rtc1?.status, "completed", "rtc1 confirmed on coverage page + past → completed");
+  assert.equal(splashdown?.status, "scheduled", "splashdown confirmed on coverage page but future → scheduled");
+});
+
+test("buildScheduleWithDeps infers past milestones when source is unavailable", async () => {
+  const LATER = new Date("2026-04-08T12:00:00.000Z");
+
+  const schedule = await buildScheduleWithDeps({
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async text() {
+        return "<html><body></body></html>";
+      },
+    }),
+    now: () => LATER,
+  });
+
+  const soi_out = schedule.milestones.find((m) => m.id === "soi-out");
+  const rtc1 = schedule.milestones.find((m) => m.id === "rtc1");
+  const splashdown = schedule.milestones.find((m) => m.id === "splashdown");
+
+  assert.equal(soi_out?.status, "inferred", "soi-out has no source confirmation → inferred");
+  assert.match(soi_out?.latest ?? "", /Inferred/i);
+  assert.equal(rtc1?.status, "inferred", "rtc1 has no source confirmation → inferred");
+  assert.equal(splashdown?.status, "scheduled", "splashdown is future → scheduled");
+});
+
 test("buildScheduleWithDeps falls back cleanly when live fetches fail", async () => {
   const schedule = await buildScheduleWithDeps({
     fetchImpl: async () => {
