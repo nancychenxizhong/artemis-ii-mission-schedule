@@ -1,4 +1,4 @@
-import { Milestone, ScheduleResponse, SourceCheck, Status, cloneBaseMilestones, finalizeMilestoneLatest } from "./artemis-data";
+import { Milestone, ScheduleResponse, SourceCheck, cloneBaseMilestones, finalizeMilestoneLatest } from "./artemis-data";
 
 const COVERAGE_URL = "https://www.nasa.gov/missions/artemis/artemis-2/nasa-sets-coverage-for-artemis-ii-moon-mission/";
 const DAILY_AGENDA_URL = "https://www.nasa.gov/missions/artemis/nasas-artemis-ii-moon-mission-daily-agenda/";
@@ -15,7 +15,7 @@ const FALLBACK_BLOG_URLS = [
   "https://www.nasa.gov/blogs/missions/2026/04/01/live-artemis-ii-launch-day-updates/",
 ] as const;
 
-const MAX_DISCOVERED_BLOGS = 6;
+const MAX_DISCOVERED_BLOGS = 12;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 type PageResult = {
@@ -174,6 +174,75 @@ function milestoneEndMs(milestone: Milestone): number | null {
     : new Date(milestone.timeSpec.endUtc).getTime();
 }
 
+/**
+ * Returns the keywords to search for in blog text for this milestone.
+ * Uses milestone.blogKeywords when set; otherwise derives terms from the title:
+ * - Extracts uppercase acronyms from parentheses: "(TLI)" → "tli"
+ * - Uses the main title text (parenthetical content stripped, "+" normalised)
+ */
+function deriveMilestoneKeywords(milestone: Milestone): string[] {
+  if (milestone.blogKeywords && milestone.blogKeywords.length > 0) {
+    return milestone.blogKeywords;
+  }
+  const keywords: string[] = [];
+  for (const m of milestone.title.matchAll(/\(([A-Z][A-Z0-9-]{1,5})\)/g)) {
+    keywords.push(m[1].toLowerCase());
+  }
+  const main = milestone.title
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (main.length >= 4) keywords.push(main);
+  return keywords;
+}
+
+/**
+ * Produces a human-readable source label from a NASA blog URL slug.
+ * e.g. "…flight-day-5-otc2-burn…" → "Flight Day 5 update"
+ */
+function labelFromBlogUrl(url: string): string {
+  const slug = url.split("/").filter(Boolean).pop() ?? "";
+  const dayMatch = slug.match(/flight-day-(\d+)/i);
+  if (dayMatch) return `Flight Day ${dayMatch[1]} update`;
+  if (/launch.day/i.test(slug)) return "Launch day update";
+  const label = slug.replace(/-/g, " ").replace(/\bartemis\s*ii?\b/gi, "").trim().slice(0, 50);
+  return label || "Mission update";
+}
+
+// Sentences that plan or describe an upcoming event — not evidence of completion.
+const PLANNING_RE = /\b(will|plan(?:ned|ning)?|schedul|upcoming|expect(?:ed)?|intend|shall|slated|targeted|set\s+to|prepar(?:es|ing)|getting\s+ready|ahead\s+of|prior\s+to)\b/i;
+// Language indicating an event was canceled or not needed.
+const CANCEL_RE = /\b(cancel|cancell|scrub|not\s+needed|no\s+longer\s+needed|waived)\b/i;
+
+/**
+ * Scans page text sentence-by-sentence for evidence that a milestone occurred.
+ * Returns the outcome kind and the raw sentence as the detail, or null if not found.
+ *
+ * Any sentence that mentions a keyword without future-tense planning language is
+ * treated as evidence the event happened — consistent with how NASA mission blog
+ * posts are written (present/past tense = it's happening or happened).
+ */
+function findMilestoneOutcome(
+  text: string,
+  keywords: string[]
+): { kind: "completed" | "canceled"; detail: string } | null {
+  const sentences = text.match(/[^.!?]+[.!?]*/g) ?? [];
+  for (const raw of sentences) {
+    const sentence = raw.trim();
+    if (sentence.length < 12) continue;
+    const lower = sentence.toLowerCase();
+    if (!keywords.some((k) => lower.includes(k))) continue;
+    if (PLANNING_RE.test(sentence)) continue;
+    if (CANCEL_RE.test(sentence)) {
+      return { kind: "canceled", detail: sentence.replace(/\s+/g, " ").slice(0, 250) };
+    }
+    return { kind: "completed", detail: sentence.replace(/\s+/g, " ").slice(0, 250) };
+  }
+  return null;
+}
+
 const COVERAGE_COMPLETED_DETAIL_DEFAULT = "confirmed on NASA coverage page; exact time not posted";
 
 function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now: Date) {
@@ -200,63 +269,6 @@ function updateCoverageMilestones(milestones: Milestone[], page: PageResult, now
   }
 }
 
-type BlogMilestoneConfig = {
-  id: string;
-  urlHint?: string;
-  /** Broad match used for routing: URL contains urlHint OR page text matches triggerText. */
-  triggerText: RegExp;
-  /** Specific confirmation check. Defaults to triggerText when absent. */
-  confirmText?: RegExp;
-  status: Status;
-  latestDetail: string;
-  freshnessLabel: string;
-};
-
-const BLOG_MILESTONE_CONFIGS: BlogMilestoneConfig[] = [
-  {
-    id: "launch",
-    urlHint: "launch-day",
-    triggerText: /Live launch day updates/i,
-    status: "completed",
-    latestDetail: "at 6:35 PM EDT",
-    freshnessLabel: "Checked live from launch-day updates",
-  },
-  {
-    id: "tli",
-    urlHint: "tli-burn",
-    triggerText: /completes?\s+TLI\s+burn|translunar\s+injection\s+burn/i,
-    status: "completed",
-    latestDetail: "crew began journey to the Moon",
-    freshnessLabel: "Checked live from TLI update",
-  },
-  {
-    id: "otc1",
-    urlHint: "outbound-trajectory-correction-burn-update",
-    triggerText: /outbound\s+trajectory\s+correction\s+burn/i,
-    confirmText: /cancel(?:l?ed)?\s+the\s+spacecraft[\u2019']s\s+first\s+outbound\s+trajectory\s+correction\s+burn/i,
-    status: "canceled",
-    latestDetail: "Orion already on the right flight path",
-    freshnessLabel: "Checked live from OTC-1 update",
-  },
-  {
-    id: "comms-test",
-    urlHint: "crew-prepares-cabin-for-lunar-flyby",
-    triggerText: /emergency\s+communications?\s+system|optical\s+communications?/i,
-    confirmText: /testing\s+the\s+spacecraft[\u2019']s\s+emergency\s+communications?\s+system/i,
-    status: "completed",
-    latestDetail: "emergency communications system and optical link activity publicly confirmed, exact wall-clock time not posted",
-    freshnessLabel: "Checked live from Flight Day 3 update",
-  },
-  {
-    id: "manual-piloting-demo",
-    urlHint: "manual-piloting-demonstration",
-    triggerText: /manual\s+piloting\s+demonstration|controlling\s+the\s+spacecraft/i,
-    status: "completed",
-    latestDetail: "crew manually piloted Orion for 41 minutes in deep space",
-    freshnessLabel: "Checked live from Flight Day 4 update",
-  },
-];
-
 function updateDailyAgendaBackfill(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.html) return;
   const freshness = extractFreshness(page.html, "Checked live from Daily Agenda");
@@ -281,29 +293,17 @@ function inferPastMilestones(milestones: Milestone[], now: Date) {
 function applyMissionUpdatePage(milestones: Milestone[], page: PageResult) {
   if (!page.ok || !page.text || !page.html) return;
 
-  const lowerUrl = page.url.toLowerCase();
+  const freshness = extractFreshness(page.html, labelFromBlogUrl(page.url));
+  const sourceLabel = labelFromBlogUrl(page.url);
 
-  for (const config of BLOG_MILESTONE_CONFIGS) {
-    const isRouted =
-      (config.urlHint !== undefined && lowerUrl.includes(config.urlHint)) ||
-      config.triggerText.test(page.text);
-    if (!isRouted) continue;
-
-    const milestone = milestones.find((m) => m.id === config.id);
-    if (!milestone) continue;
-
-    milestone.sourceFreshness = extractFreshness(page.html, config.freshnessLabel);
-
-    const confirmPattern = config.confirmText ?? config.triggerText;
-    if (confirmPattern.test(page.text)) {
-      milestone.status = config.status;
-      milestone.latestDetail = config.latestDetail;
-    }
-    // TODO: there is currently no signal when a config entry's confirmText stops matching
-    // a page that was routed to it (i.e. the page is about OTC-1 but the cancel phrase
-    // changed wording). The milestone silently stays at its previous status. Consider
-    // recording a structured warning in the SourceCheck or a separate diagnostics field
-    // so ops can detect when NASA has changed page wording and patterns need updating.
+  for (const milestone of milestones) {
+    const keywords = deriveMilestoneKeywords(milestone);
+    const outcome = findMilestoneOutcome(page.text, keywords);
+    if (!outcome) continue;
+    milestone.sourceFreshness = freshness;
+    milestone.source = sourceLabel;
+    milestone.status = outcome.kind;
+    milestone.latestDetail = outcome.detail;
   }
 }
 

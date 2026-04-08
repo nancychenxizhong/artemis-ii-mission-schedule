@@ -101,12 +101,13 @@ test("buildScheduleWithDeps applies live page updates into the bundled schedule"
   assert.equal(perigeeRaiseIcps?.status, "completed");
   assert.equal(proximityOps?.status, "completed");
   assert.equal(commsTest?.status, "completed");
-  assert.match(otc1?.latest ?? "", /right flight path/i);
-  assert.match(commsTest?.latest ?? "", /Completed; emergency communications system and optical link activity publicly confirmed/i);
+  // detail is the extracted sentence from the blog, not a pre-written string
+  assert.match(otc1?.latest ?? "", /Canceled;.*trajectory correction burn/i);
+  assert.match(commsTest?.latest ?? "", /emergency communications system/i);
   assert.equal(manualPilotingDemo?.status, "completed");
   assert.match(manualPilotingDemo?.latest ?? "", /41 minutes/i);
   assert.equal(tli?.status, "completed");
-  assert.match(tli?.latest ?? "", /journey to the Moon/i);
+  assert.match(tli?.latest ?? "", /TLI burn/i);
   assert.equal(crewSuitTest?.latest, "Scheduled");
   assert.equal(splashdown?.latest, "Scheduled");
   assert.equal(splashdown?.sourceFreshness, "April 4, 2026 7:00 PM");
@@ -280,7 +281,7 @@ test("OTC-1 cancel detection handles curly apostrophe from HTML entities", async
 
   const otc1 = schedule.milestones.find((m) => m.id === "otc1");
   assert.equal(otc1?.status, "canceled", "OTC-1 should be canceled even with HTML-entity apostrophe");
-  assert.match(otc1?.latest ?? "", /right flight path/i);
+  assert.match(otc1?.latest ?? "", /Canceled;.*trajectory correction burn/i);
 });
 
 test("blog post sets completed status even when coverage page shows milestone as scheduled", async () => {

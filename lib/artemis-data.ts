@@ -32,6 +32,13 @@ export type Milestone = {
    * Defaults to "confirmed on NASA coverage page; exact time not posted" when absent.
    */
   coverageCompletedDetail?: string;
+  /**
+   * Keywords used to detect this milestone in NASA blog posts.
+   * When absent, derived automatically from the milestone title.
+   * Override when the title terms don't match how NASA writes about the event in blogs
+   * (e.g. "first outbound trajectory correction" rather than "outbound trajectory correction-1").
+   */
+  blogKeywords?: string[];
   note?: string;
   source: string;
   sourceFreshness: string;
@@ -64,6 +71,7 @@ export const BASE_MILESTONES: Milestone[] = [
     timeSpec: { kind: "instant", instantUtc: "2026-04-01T22:35:00Z" },
     baseline: "Launch window opened 6:24 PM EDT",
     latestDetail: "at 6:35 PM EDT",
+    blogKeywords: ["liftoff", "lifted off", "launched"],
     source: "Launch day live updates",
     sourceFreshness: "Apr 1–2",
     confidence: "high",
@@ -153,6 +161,7 @@ export const BASE_MILESTONES: Milestone[] = [
     },
     baseline: "Scheduled during Flight Day 3",
     latestDetail: "emergency comms test and optical link activity publicly confirmed, exact wall-clock time not posted",
+    blogKeywords: ["emergency communications system", "optical link", "optical communications"],
     source: "Flight Day 3 updates",
     sourceFreshness: "Apr 3–4",
     confidence: "medium",
@@ -166,6 +175,7 @@ export const BASE_MILESTONES: Milestone[] = [
     timeSpec: { kind: "instant", instantUtc: "2026-04-03T22:49:00Z" },
     baseline: "Planned burn",
     latestDetail: "Orion already on the right path",
+    blogKeywords: ["outbound trajectory correction-1", "otc-1", "first outbound trajectory correction"],
     source: "OTC-1 update",
     sourceFreshness: "Apr 3",
     confidence: "high",
@@ -180,6 +190,7 @@ export const BASE_MILESTONES: Milestone[] = [
     baseline: "Planned burn",
     coveragePhrase: "Outbound trajectory correction-2 burn",
     coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
+    blogKeywords: ["outbound trajectory correction-2", "otc-2", "second outbound trajectory correction"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -225,6 +236,7 @@ export const BASE_MILESTONES: Milestone[] = [
     baseline: "Planned burn",
     coveragePhrase: "Outbound trajectory correction-3 burn",
     coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
+    blogKeywords: ["outbound trajectory correction-3", "otc-3", "third outbound trajectory correction"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -291,6 +303,7 @@ export const BASE_MILESTONES: Milestone[] = [
     baseline: "Planned",
     coveragePhrase: "Return trajectory correction-1 burn",
     coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
+    blogKeywords: ["return trajectory correction-1", "rtc-1", "first return trajectory correction"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -305,6 +318,7 @@ export const BASE_MILESTONES: Milestone[] = [
     baseline: "Planned",
     coveragePhrase: "Return trajectory correction-2 burn",
     coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
+    blogKeywords: ["return trajectory correction-2", "rtc-2", "second return trajectory correction"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -335,6 +349,7 @@ export const BASE_MILESTONES: Milestone[] = [
     baseline: "Planned",
     coveragePhrase: "Return trajectory correction-3 burn",
     coverageCompletedDetail: "burn confirmed on NASA coverage page; exact time not posted",
+    blogKeywords: ["return trajectory correction-3", "rtc-3", "third return trajectory correction"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
