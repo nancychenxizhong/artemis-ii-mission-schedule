@@ -363,6 +363,8 @@ export const BASE_MILESTONES: Milestone[] = [
     timeSpec: { kind: "instant", instantUtc: "2026-04-10T23:53:00Z" },
     baseline: "Planned",
     coveragePhrase: "Entry interface",
+    // "entry interface" appears in pre-entry planning docs; use phrasing that confirms the event.
+    blogKeywords: ["reached entry interface", "entry interface at", "entered the atmosphere"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
@@ -376,6 +378,9 @@ export const BASE_MILESTONES: Milestone[] = [
     timeSpec: { kind: "instant", instantUtc: "2026-04-11T00:07:00Z" },
     baseline: "Planned",
     coveragePhrase: "Splashdown",
+    // "splashdown" as a noun appears throughout mission docs ("after splashdown", "during splashdown").
+    // Use past-tense verb forms that only appear when the event actually occurred.
+    blogKeywords: ["splashed down", "orion splashed", "crew has splashed", "spacecraft splashed"],
     source: "Coverage page",
     sourceFreshness: "Updated Apr 3",
     confidence: "high",
